@@ -1,0 +1,42 @@
+## Non-Goals
+
+- Defining RBAC rules or webhook rate limits.
+- Defining detailed billing UI behavior.
+- Defining graph activation policy.
+
+## ADDED Requirements
+
+### Requirement: Ticket And Team Budget Caps Are Mandatory
+
+The platform MUST enforce hard budget caps for individual runs and for team-level daily and monthly usage.
+
+#### Scenario: Run stays within ticket and team budgets
+- **WHEN** a model invocation is requested for a run with available ticket and team budget
+- **THEN** the runtime may continue after budget reservation succeeds
+
+#### Scenario: Budget exhaustion stops normal progress
+- **WHEN** a requested invocation would exceed the configured ticket, daily team, or monthly team cap
+- **THEN** the invocation is blocked
+- **AND** the run escalates with a budget-exhaustion reason instead of continuing silently
+
+### Requirement: Budget Reservation Is Atomic
+
+Budget enforcement MUST use atomic reservation across the relevant counters so concurrent calls cannot overspend shared caps.
+
+#### Scenario: Concurrent calls cannot overspend budget
+- **WHEN** multiple workers or nodes attempt model invocations that draw from the same budget pools
+- **THEN** the reservation logic applies all required decrements atomically or rolls them back together
+- **AND** the combined calls cannot exceed the configured cap through a check-then-act race
+
+### Requirement: Reservation Settlement Reconciles Actual Cost
+
+Budget reservations MUST reconcile estimated and actual cost after each invocation, including failed-call cleanup.
+
+#### Scenario: Over-reserved budget is refunded
+- **WHEN** actual invocation cost is lower than the reserved worst-case estimate
+- **THEN** the unused amount is credited back to the relevant budget pools during settlement
+
+#### Scenario: Orphaned reservation is recovered
+- **WHEN** a reserved invocation fails before settlement completes
+- **THEN** background reconciliation can identify and release the orphaned reservation
+- **AND** the budget does not remain permanently reduced by a failed call path

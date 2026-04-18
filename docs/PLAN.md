@@ -622,15 +622,15 @@ The default execution model for v1 is **autonomous-first Spec-Driven Development
 12. Reviewer/analyzer checks artifact quality for ambiguity, coverage, and constitution compliance
 13. If ambiguity remains and spec_iteration_count < max_spec_iterations → back to Planner for autonomous clarification/rewrite
 14. If ambiguity remains and spec_iteration_count >= max_spec_iterations → Escalate to human with unresolved questions
-15. Planner creates implementation plan and ordered task list with explicit test expectations
+15. Planner creates implementation plan and ordered task list with explicit test expectations (each implementation task is paired with a unit-test task, and an end-to-end test task is declared when the change touches a public API, webhook, UI surface, or cross-service flow)
 16. Base branch sync: rebase work_branch on latest base_branch, detect merge conflicts
     - If conflicts detected → escalate to human with conflict details
-17. Coder implements changes in hardened Kubernetes sandbox strictly against constitution/spec/plan/tasks artifacts
+17. Coder implements changes in hardened Kubernetes sandbox strictly against constitution/spec/plan/tasks artifacts, and authors the unit tests declared by the task list alongside the implementation
 18. Diff size guard: if total diff exceeds MAX_DIFF_LINES (2000), split or escalate
-19. Tester runs tests in sandbox (exit code determines pass/fail)
-20. If tests fail and test_retry_count < max_test_retries → back to Coder
-21. If tests fail and test_retry_count >= max_test_retries → Escalate to human
-22. If tests pass → Reviewer checks code against constitution, spec, plan, tasks, and repo/diff/test context
+19. Tester runs the full test suite in sandbox, including the agent-authored unit tests and any end-to-end layer declared by the task list; exit code determines pass/fail; missing required layers are treated as failures with reason `missing_or_failing_required_tests`
+20. If tests fail (or a required layer is missing) and test_retry_count < max_test_retries → LangGraph conditional edge routes back to Coder, which re-implements against the same pinned artifacts; Tester runs again; the `tester -> coder -> tester` loop iterates until every required test layer passes or the retry budget is exhausted
+21. If tests still fail and test_retry_count >= max_test_retries → Escalate to human
+22. If tests pass → Reviewer runs lint + type/static analysis on the agent-produced diff and checks code against constitution, spec, plan, tasks, repo/diff/test context, and the planner-recorded SOLID-aligned design checks
 23. If reviewer detects spec drift or missing task decomposition and spec_iteration_count < max_spec_iterations → back to Planner for replan
 24. If reviewer rejects implementation and review_retry_count < max_review_retries → back to Coder
 25. If review cannot be resolved within spec/review retry limits → Escalate to human
@@ -874,6 +874,10 @@ The graph editor is intentionally flexible, but `ticket_to_pr_v1` is not an arbi
 - every path that reaches a repo-writing node first passes through a planner-owned SDD phase and sets `spec_ready_for_implementation=True`
 - every path to `pr_creator` passes through `check_diff_size`, `reviewer`, and `pre_pr_sync`
 - every path after a repo-writing node eventually reaches `tester` before `reviewer`
+- the planner-owned `task_list` pairs every implementation task with a unit-test task, and declares an end-to-end test task when the ticket changes a public API, webhook, UI surface, or cross-service flow
+- `tester` executes agent-authored unit tests and the declared end-to-end layer, and `pr_creator` refuses to open a PR when any required test layer is missing, skipped, or failing
+- test failures (including missing required layers) iterate through the bounded `tester -> coder -> tester` loop against the same pinned artifacts until every required layer passes or `max_test_retries` is exhausted, at which point the run escalates with reason `missing_or_failing_required_tests`; reviewer and `pr_creator` are unreachable while any required test layer is not passing
+- `reviewer` approval is blocked while linting, type or static analysis, or declared SOLID-aligned design checks fail on the agent-produced diff
 - a human interrupt can be inserted before protected nodes as break-glass control, but a protected guard cannot be removed or bypassed and the success path cannot require manual approval
 - if a graph omits a required invariant, validation fails even when `workflow.compile()` succeeds
 
@@ -887,6 +891,11 @@ def should_retry(state: TicketState) -> str:
     if state.get("budget_remaining_usd", Decimal("999")) <= 0:
         return "escalate"
 
+    # tests_passed is True only when every required test layer declared in the
+    # task list (agent-authored unit tests plus any declared end-to-end layer)
+    # has executed and passed. A missing required layer is treated as a failure
+    # with reason `missing_or_failing_required_tests`, which keeps the run in
+    # the bounded tester -> coder iteration below instead of reaching reviewer.
     if state.get("tests_passed"):
         return "reviewer"
     if state.get("test_retry_count", 0) < state.get("max_test_retries", 3):
@@ -3075,6 +3084,23 @@ All four environments share the same Helm chart with values overlays. Drift betw
 | E2E | ~15+ | Full webhook → PR flow against test repos | Nightly + pre-release |
 | Chaos | ~10+ | Failure injection (LLM garbage, sandbox crash, DB loss) | Weekly + pre-release |
 | Prompt Regression | ~20+ | Known-good prompt/response pairs via LangSmith evaluations | Every prompt/config change |
+
+### Runtime Test Authoring Gate (customer code)
+
+The test counts above are for this product's own codebase. The runtime ticket pipeline imposes a separate, mandatory test-authoring gate on the customer code the agents produce:
+
+- The planner-owned `task_list` MUST pair every implementation task with a unit-test task, and MUST declare an end-to-end test task when the ticket changes a public API, webhook, UI surface, or cross-service flow.
+- The `coder` authors the unit tests alongside the implementation. It does not rely only on tests that already existed in the customer repo.
+- The `tester` executes both the agent-authored unit layer and the declared end-to-end layer in the hardened sandbox. Exit code gates pass or fail per role contract.
+- `pr_creator` refuses to open a pull request when any required test layer declared in the task list is missing, skipped, or failing.
+- Missing or failing required tests route back to `coder` within `max_test_retries`, and escalate with reason `missing_or_failing_required_tests` when the retry budget is exhausted.
+
+This gate is a protected workflow invariant and cannot be disabled per-tenant at v1.
+
+### SOLID And Static Analysis Gate
+
+- Product codebase (this repository): CI enforces linting, type or static analysis, complexity, and duplication checks on every pull request. Reviewer approval uses an explicit SOLID checklist (single-responsibility, open-closed, Liskov substitution, interface segregation, dependency-inversion). Unit and integration coverage floors are declared and enforced, and regressions below the floor require an auditable waiver to merge.
+- Customer codebase (runtime agents): the reviewer node runs the configured linters and static or type analysis for the target stack against the agent-produced diff, and validates any SOLID-aligned design checks recorded by the planner for the ticket. Violations route back to `coder` or `planner` within retry limits before PR creation proceeds.
 
 ### Prompt Regression Testing
 
