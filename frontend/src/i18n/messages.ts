@@ -1,0 +1,49 @@
+export const messages = {
+  en: {
+    appTitle: "LangGraph Dev Squad",
+    appSubtitle: "Tenant-scoped monitoring and control room",
+    roleLabel: "Role",
+    reducedMotion: "Reduced motion",
+    localeLabel: "Locale",
+    englishOnly: "English-only early GA with structured extraction",
+    dashboard: "Dashboard",
+    controlRoom: "Control Room",
+    interrupts: "Interrupts",
+    graphEditor: "Graph Editor",
+    admin: "Admin",
+    globalScope: "Global Scope",
+    liveStatus: "Live status stream",
+    activeRuns: "Active Runs",
+    breakGlass: "Break-glass review",
+    retry: "Retry",
+    dismiss: "Dismiss",
+    approve: "Approve",
+    dlqTitle: "Dead letter queue",
+    readOnlyGraph: "Read-only graph mode",
+    graphParityGap: "Direct node CRUD is deferred. JSON import and export remain available.",
+    loadActiveGraph: "Load active graph",
+    loadInvalidGraph: "Load invalid candidate",
+    validationHeading: "Validation feedback",
+    exportHeading: "Graph JSON",
+    controlRoomHeading: "Office floor",
+    spriteHeading: "Sprite manifest",
+    uploadDeferred: "Upload API not implemented yet. Request would return 501.",
+    uploadSprite: "Upload sprite",
+    dryRunSuccess: "Dry-run stayed within backend guardrails.",
+    dryRunBlocked: "Dry-run blocked because the requested tool is outside the role boundary.",
+    runLegend: "Runtime states include text labels and not just color.",
+    graphProtected: "Protected system node",
+    shadowEvidence: "Shadow evidence",
+    metrics: "Metrics",
+    costs: "Costs",
+    localeValue: "en-US",
+    spriteBundledOnly: "Bundled assets only in early GA",
+  },
+} as const;
+
+export type Locale = keyof typeof messages;
+export type MessageKey = keyof (typeof messages)["en"];
+
+export function t(locale: Locale, key: MessageKey): string {
+  return messages[locale][key];
+}

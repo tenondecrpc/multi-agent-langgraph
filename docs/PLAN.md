@@ -983,7 +983,7 @@ dev-squad/
 ├── helm/                              # Helm chart for Kubernetes deployment
 │   ├── Chart.yaml
 │   ├── values.yaml                    # Base values
-│   ├── values-local-minikube.yaml     # Single-cluster local overlay for macOS/Linux dev
+│   ├── values-local-minikube.yaml     # Single-cluster local overlay for cross-platform development
 │   ├── values-dev.yaml                # Dev overlay
 │   ├── values-staging.yaml            # Staging overlay
 │   ├── values-prod.yaml               # Production overlay
@@ -1281,11 +1281,11 @@ Cluster-level collectors such as `promtail`, `kube-state-metrics`, and `node-exp
 
 ### Environment Profile: `local-minikube`
 
-`local-minikube` is the explicit workstation profile for macOS/Linux development. It validates manifests, namespaces, ESO/Vault wiring, ingress, queueing, sandbox Jobs, and the core agent loop, but it does **not** attempt to emulate production HA, multi-AZ, or full observability retention.
+`local-minikube` is the explicit workstation profile for cross-platform development on macOS, Windows, and Linux. It validates manifests, namespaces, ESO/Vault wiring, ingress, queueing, sandbox Jobs, and the core agent loop, but it does **not** attempt to emulate production HA, multi-AZ, or full observability retention.
 
 #### Minikube prerequisites
 
-- **Driver** — `vfkit` on modern macOS (`docker` is acceptable if already standardized locally).
+- **Driver** — `docker` is the standard local Minikube driver across macOS, Windows, and Linux workstations.
 - **Addons enabled** — `ingress`, `metrics-server`.
 - **Optional addons** — `gvisor` for sandbox runtime approximation; `csi-hostpath-driver` if you run a multi-node local cluster and need PVCs.
 - **Node count** — `1` by default; `2` only when validating anti-affinity, scheduling, or multi-node behavior.

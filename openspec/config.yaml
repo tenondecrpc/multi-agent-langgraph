@@ -17,9 +17,17 @@ context: |
   - Use ASCII punctuation by default. Do not use em dashes or en dashes in prose, bullet lists, headings, commit messages, plans, or code comments. Always use the plain ASCII hyphen instead.
 
   Repository status:
-  - This is a pre-implementation repository. Only OpenSpec artifacts under openspec/ exist today.
-  - When implementation begins, scaffold into backend/ (FastAPI + ARQ + LangGraph), frontend/ (Vite + React + TypeScript), helm/ (Helm charts for connected and air_gapped profiles), and docs/.
-  - Build, test, and lint commands do not exist yet. Introduce them together with the first implementation change and document them in AGENTS.md and this file.
+  - This repository is in early implementation. Executable backend and frontend slices now exist under backend/ and frontend/. Initial operator and status documentation now exists under docs/, while helm/ remains a scaffold and the archived OpenSpec changes record the implemented roadmap.
+  - Scaffold targets remain backend/ (FastAPI + ARQ + LangGraph), frontend/ (Vite + React + TypeScript), helm/ (Helm charts for connected and air_gapped profiles), and docs/.
+  - Use uv for Python dependency management, environment synchronisation, and Python command execution.
+  - Current backend commands from the repository root:
+    - uv sync --project backend --dev
+    - uv run --project backend ruff check backend/src backend/tests
+    - uv run --project backend pytest
+  - Current frontend commands from the repository root:
+    - npm install --prefix frontend
+    - npm run --prefix frontend test -- --run
+    - npm run --prefix frontend build
 
   Deployment model:
   - Self-hosted only inside customer-owned infrastructure.
@@ -40,6 +48,7 @@ context: |
   Core stack:
   - Orchestration: LangGraph StateGraph, langgraph-checkpoint-postgres, langgraph.store.postgres.
   - API and workers: FastAPI, ARQ.
+  - Python packaging and environments: uv.
   - Persistence and queues: PostgreSQL 16 HA, Redis 7 Cluster, optional pgvector.
   - Frontend: Vite, React, TypeScript.
   - Sandboxing: Kubernetes 1.30+, gVisor.
@@ -153,7 +162,7 @@ context: |
 
   Verification expectations:
   - For OpenSpec artifact changes, validate that proposal, specs, design, and tasks satisfy the rules in this file (Tier 1 preserved, Tier 2 degradations explicit, workflow invariants intact, observability and rollback included for security or operations scope).
-  - For backend changes (once scaffolded), run unit, integration, and prompt-regression tests for the affected modules; confirm graph paths still traverse test, diff guard, review, and pre-PR sync before PR creation.
+  - For backend changes, install and synchronise Python dependencies with uv, then run the relevant backend verification via uv run; at minimum use uv run --project backend ruff check backend/src backend/tests and uv run --project backend pytest, then confirm graph paths still traverse test, diff guard, review, and pre-PR sync before PR creation.
   - For frontend changes, confirm the accessibility non-negotiable subset: no color-only state, keyboard reachability of every interactive element, prefers-reduced-motion support, and AA text contrast.
   - For Helm, Kustomize, RBAC, network policy, or gVisor changes, include manual verification notes and dry-run or shadow-mode output; flag as high-risk.
   - For schema changes, verify expand/contract migration discipline with reversibility tests.

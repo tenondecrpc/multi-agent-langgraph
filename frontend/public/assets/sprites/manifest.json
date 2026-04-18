@@ -1,0 +1,26 @@
+[
+  {
+    "sprite_id": "planner-idle",
+    "source_kind": "bundled",
+    "runtime_role": "planner",
+    "runtime_state": "planning",
+    "alt_text_key": "planner.idle",
+    "path": "/assets/sprites/planner-idle.svg"
+  },
+  {
+    "sprite_id": "coder-active",
+    "source_kind": "bundled",
+    "runtime_role": "coder",
+    "runtime_state": "active",
+    "alt_text_key": "coder.active",
+    "path": "/assets/sprites/coder-active.svg"
+  },
+  {
+    "sprite_id": "reviewer-paused",
+    "source_kind": "bundled",
+    "runtime_role": "reviewer",
+    "runtime_state": "paused",
+    "alt_text_key": "reviewer.paused",
+    "path": "/assets/sprites/reviewer-paused.svg"
+  }
+]

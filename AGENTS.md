@@ -59,14 +59,28 @@ When in doubt: changes to this repository go through OpenSpec. Changes to custom
 
 ## Repository Status
 
-This is a pre-implementation repository. Only OpenSpec artifacts under `openspec/` exist today. When implementation begins, scaffold into:
+This repository is in early implementation. Executable backend and frontend slices now exist under `backend/` and `frontend/`. Initial operator and status documentation now exists under `docs/`, while `helm/` remains a scaffold and the archived OpenSpec changes record the implemented roadmap.
+
+Scaffold targets remain:
 
 - `backend/` - FastAPI app, ARQ workers, LangGraph graph, integrations
 - `frontend/` - Vite + React + TypeScript admin and monitoring UI
 - `helm/` - Helm charts for Kubernetes deployment (connected and `air_gapped` profiles)
 - `docs/` - Operator, integrator, and developer documentation
 
-Build, test, and lint commands do not exist yet. Introduce them together with the first implementation change and document them here and in `openspec/config.yaml`.
+Use `uv` for Python dependency management, environment synchronization, and Python command execution.
+
+Current backend commands from the repository root:
+
+- Sync dependencies: `uv sync --project backend --dev`
+- Lint: `uv run --project backend ruff check backend/src backend/tests`
+- Test: `uv run --project backend pytest`
+
+Current frontend commands from the repository root:
+
+- Install dependencies: `npm install --prefix frontend`
+- Test: `npm run --prefix frontend test -- --run`
+- Build: `npm run --prefix frontend build`
 
 ## Deployment Model
 
@@ -90,6 +104,7 @@ Build, test, and lint commands do not exist yet. Introduce them together with th
 
 - Orchestration: LangGraph `StateGraph`, `langgraph-checkpoint-postgres`, `langgraph.store.postgres`
 - API and workers: FastAPI, ARQ
+- Python packaging and environments: `uv`
 - Persistence and queues: PostgreSQL 16 HA, Redis 7 Cluster, optional `pgvector`
 - Frontend: Vite, React, TypeScript
 - Sandboxing: Kubernetes 1.30+, gVisor
@@ -235,7 +250,7 @@ These mirror the `rules` block in `openspec/config.yaml`. When drafting artifact
 ## Verification
 
 - For OpenSpec artifact changes, validate that proposal, specs, design, and tasks satisfy the rules in `openspec/config.yaml` (Tier 1 preserved, Tier 2 degradations explicit, workflow invariants intact, observability and rollback included for security or operations scope).
-- For backend changes (once scaffolded), run unit, integration, and prompt-regression tests for the affected modules; confirm graph paths still traverse test, diff guard, review, and pre-PR sync before PR creation.
+- For backend changes, install and synchronize Python dependencies with `uv`, then run the relevant backend verification via `uv run`; at minimum use `uv run --project backend ruff check backend/src backend/tests` and `uv run --project backend pytest`, then confirm graph paths still traverse test, diff guard, review, and pre-PR sync before PR creation.
 - For frontend changes, confirm the accessibility non-negotiable subset: no color-only state, keyboard reachability of every interactive element, `prefers-reduced-motion` support, and AA text contrast.
 - For Helm, Kustomize, RBAC, network policy, or gVisor changes, include manual verification notes and dry-run or shadow-mode output; flag as high-risk.
 - For schema changes, verify expand/contract migration discipline with reversibility tests.
