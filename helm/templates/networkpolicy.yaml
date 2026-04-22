@@ -1,0 +1,21 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: dev-squad-backend-egress
+spec:
+  podSelector:
+    matchLabels:
+      app: dev-squad-backend
+  policyTypes:
+    - Egress
+  egress:
+    {{- if .Values.networkPolicy.denyExternalLlmEgress }}
+    - to: []
+      ports: []
+    {{- else }}
+    - to:
+        {{- range .Values.networkPolicy.allowedCidrs }}
+        - ipBlock:
+            cidr: {{ . }}
+        {{- end }}
+    {{- end }}

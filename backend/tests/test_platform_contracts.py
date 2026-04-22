@@ -1,6 +1,10 @@
+import json
+from datetime import UTC, datetime
+
 from fastapi.testclient import TestClient
 
 from backend.app import create_app
+from backend.persistence import build_in_memory_persistence
 from backend.platform import InMemoryWorkerController, QueuedJob, SandboxTemplateBuilder, WeightedFairDispatcher
 
 
@@ -15,6 +19,34 @@ def test_openapi_exposes_versioned_platform_route_groups() -> None:
     assert "/api/v1/auth/callback" in paths
     assert "/api/v1/admin/profile" in paths
     assert "/api/v1/metering/exports" in paths
+
+
+def test_jira_webhook_route_uses_guard_and_deduplicates_duplicate_deliveries() -> None:
+    persistence = build_in_memory_persistence()
+    client = TestClient(create_app(persistence=persistence))
+    timestamp = int(datetime.now(tz=UTC).timestamp())
+    payload = {
+        "event_id": "evt-1",
+        "ticket_key": "ENG-1",
+        "tenant_id": "tenant-alpha",
+        "team_id": "team-core",
+        "summary": "Implement webhook persistence",
+    }
+    body = json.dumps(payload)
+    headers = {
+        "Content-Type": "application/json",
+        "X-Hub-Signature-256": persistence.webhook_guard.sign(body, timestamp),
+        "X-Atlassian-Webhook-Timestamp": str(timestamp),
+    }
+
+    accepted = client.post("/api/v1/webhooks/jira", content=body, headers=headers)
+    duplicate = client.post("/api/v1/webhooks/jira", content=body, headers=headers)
+
+    assert accepted.status_code == 200
+    assert accepted.json()["deduplicated"] is False
+    assert duplicate.status_code == 200
+    assert duplicate.json()["deduplicated"] is True
+    assert duplicate.headers["x-webhook-deduplicated"] == "true"
 
 
 def test_weighted_fair_dispatcher_prioritizes_starved_jobs_and_respects_caps() -> None:

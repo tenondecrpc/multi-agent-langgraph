@@ -14,6 +14,8 @@ class BackupRecord(BaseModel):
     backup_id: str
     created_at: datetime
     verified: bool = False
+    table_names: list[str] = Field(default_factory=list)
+    wal_archived: bool = False
 
 
 class RestoreDrillResult(BaseModel):
@@ -46,6 +48,32 @@ class ResilienceAssessment(BaseModel):
 
 
 class ResiliencePlanner:
+    def validate_backup_coverage(
+        self,
+        backup: BackupRecord,
+        *,
+        required_tables: set[str],
+        max_backup_age_minutes: int,
+        now: datetime,
+    ) -> ResilienceAssessment:
+        reasons: list[str] = []
+        missing_tables = sorted(required_tables.difference(backup.table_names))
+        if missing_tables:
+            reasons.append(f"missing_tables:{','.join(missing_tables)}")
+        if not backup.verified:
+            reasons.append("backup_unverified")
+        if not backup.wal_archived:
+            reasons.append("wal_archiving_disabled")
+        age_minutes = int((now - backup.created_at).total_seconds() // 60)
+        if age_minutes > max_backup_age_minutes:
+            reasons.append("backup_stale")
+        return ResilienceAssessment(
+            meets_rpo=age_minutes <= max_backup_age_minutes and backup.wal_archived,
+            meets_rto=backup.verified,
+            continuity_controls_ready=not reasons,
+            reasons=reasons,
+        )
+
     def assess_dr(
         self,
         objective: RecoveryObjective,

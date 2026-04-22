@@ -1,6 +1,12 @@
 from __future__ import annotations
 
-from pydantic import BaseModel
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING
+
+from pydantic import BaseModel, Field
+
+if TYPE_CHECKING:
+    from backend.persistence.testing.worker import InMemoryWorkerController
 
 
 class QueuedJob(BaseModel):
@@ -22,13 +28,16 @@ class WorkerDrainLease(BaseModel):
 
 
 class DeadLetterRecord(BaseModel):
+    record_id: str | None = None
     job_id: str
     tenant_id: str
     team_id: str
     run_id: str
     queue_name: str
     failure_reason: str
+    worker_id: str | None = None
     checkpoint_ref: str | None = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(tz=UTC))
 
 
 class WeightedFairDispatcher:
@@ -62,41 +71,18 @@ class WeightedFairDispatcher:
         )
 
 
-class InMemoryWorkerController:
-    def __init__(self) -> None:
-        self.active_jobs: dict[str, QueuedJob] = {}
-        self.draining_workers: set[str] = set()
-        self.dead_letter_records: list[DeadLetterRecord] = []
+__all__ = [
+    "DeadLetterRecord",
+    "InMemoryWorkerController",
+    "QueuedJob",
+    "WeightedFairDispatcher",
+    "WorkerDrainLease",
+]
 
-    def assign(self, worker_id: str, job: QueuedJob) -> None:
-        if worker_id in self.draining_workers:
-            raise ValueError(f"Worker `{worker_id}` is draining and cannot accept new jobs.")
-        self.active_jobs[worker_id] = job
 
-    def begin_drain(self, worker_id: str) -> WorkerDrainLease:
-        self.draining_workers.add(worker_id)
-        active_job = self.active_jobs.get(worker_id)
-        return WorkerDrainLease(
-            worker_id=worker_id,
-            accepting_new_jobs=False,
-            active_job_id=active_job.job_id if active_job else None,
-        )
+def __getattr__(name: str):
+    if name == "InMemoryWorkerController":
+        from backend.persistence.testing.worker import InMemoryWorkerController
 
-    def checkpoint_and_release(self, worker_id: str, checkpoint_ref: str) -> QueuedJob:
-        active_job = self.active_jobs.pop(worker_id)
-        active_job.checkpoint_ref = checkpoint_ref
-        return active_job
-
-    def capture_terminal_failure(self, worker_id: str, failure_reason: str) -> DeadLetterRecord:
-        active_job = self.active_jobs.pop(worker_id)
-        record = DeadLetterRecord(
-            job_id=active_job.job_id,
-            tenant_id=active_job.tenant_id,
-            team_id=active_job.team_id,
-            run_id=active_job.run_id,
-            queue_name=active_job.queue_name,
-            failure_reason=failure_reason,
-            checkpoint_ref=active_job.checkpoint_ref,
-        )
-        self.dead_letter_records.append(record)
-        return record
+        return InMemoryWorkerController
+    raise AttributeError(name)

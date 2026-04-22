@@ -63,6 +63,13 @@ class EscalationReason(StrEnum):
     BILLING_RECONCILIATION_DRIFT = "billing_reconciliation_drift"
 
 
+class TenantContext(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    tenant_id: str
+    team_id: str
+
+
 class RuntimeArtifact(BaseModel):
     artifact_id: str = Field(default_factory=lambda: str(uuid4()))
     kind: ArtifactKind
@@ -211,6 +218,7 @@ class TicketRunState(BaseModel):
 
     status: RunStatus = RunStatus.PLANNING
     current_node: RunNode = RunNode.INTAKE
+    node_history: list[RunNode] = Field(default_factory=lambda: [RunNode.INTAKE])
     paused_at_node: RunNode | None = None
     escalation_reason: EscalationReason | None = None
     escalation_sink: str | None = None
@@ -262,4 +270,9 @@ class TicketRunState(BaseModel):
         self.escalation_sink = None
         if self.status == RunStatus.PAUSED:
             self.status = RunStatus.ACTIVE
+        return self
+
+    def transition_to(self, node: RunNode) -> TicketRunState:
+        self.current_node = node
+        self.node_history.append(node)
         return self

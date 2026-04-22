@@ -1,0 +1,30 @@
+{
+  "title": "Persistence Backbone",
+  "panels": [
+    {
+      "id": "migration",
+      "title": "Migration Revision",
+      "query": "devsquad_persistence_migration_info"
+    },
+    {
+      "id": "pool",
+      "title": "Database Pool",
+      "query": "devsquad_database_pool_utilisation_ratio"
+    },
+    {
+      "id": "breaker",
+      "title": "Provider Circuit Breaker",
+      "query": "devsquad_provider_circuit_breaker_state"
+    },
+    {
+      "id": "dlq",
+      "title": "DLQ Depth",
+      "query": "devsquad_dlq_depth"
+    },
+    {
+      "id": "rotation",
+      "title": "Key Rotation Due Count",
+      "query": "devsquad_encryption_rotation_due_total"
+    }
+  ]
+}

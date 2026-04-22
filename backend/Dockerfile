@@ -6,6 +6,8 @@ RUN pip install uv
 
 COPY pyproject.toml .
 COPY README.md .
+COPY alembic.ini .
+COPY alembic/ alembic/
 COPY src/ src/
 
 RUN uv pip install --system "uvicorn[standard]>=0.34" .

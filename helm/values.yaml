@@ -1,0 +1,54 @@
+profile: connected
+
+image:
+  repository: langgraph-dev-squad/backend
+  tag: latest
+  pullPolicy: IfNotPresent
+
+service:
+  port: 8000
+
+database:
+  secretName: dev-squad-persistence
+  urlKey: database-url
+  poolSize: 10
+  statementTimeoutMs: 5000
+  tlsEnabled: true
+
+redis:
+  secretName: dev-squad-persistence
+  urlKey: redis-url
+  maxConnections: 20
+  tlsEnabled: true
+
+encryption:
+  provider: vault
+  activeKeyId: kek-v1
+  wrappingSecretName: dev-squad-persistence
+  wrappingKeyKey: wrapping-key
+  previousKeyIds: ""
+
+externalSecrets:
+  enabled: true
+  secretStoreName: vault-backend
+  secretPath: kv/langgraph-dev-squad/runtime
+
+networkPolicy:
+  denyExternalLlmEgress: false
+  allowedCidrs:
+    - 0.0.0.0/0
+
+rollout:
+  enabled: true
+  strategy:
+    steps:
+      - setWeight: 5
+      - pause:
+          duration: 60
+      - setWeight: 25
+      - pause:
+          duration: 120
+      - setWeight: 50
+      - pause:
+          duration: 180
+      - setWeight: 100

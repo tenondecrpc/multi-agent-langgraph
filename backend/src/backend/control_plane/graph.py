@@ -2,9 +2,14 @@ from __future__ import annotations
 
 from collections import defaultdict
 from datetime import datetime
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 from pydantic import BaseModel, Field
+
+from backend.persistence.contracts import HandlerRegistry
+
+if TYPE_CHECKING:
+    from backend.persistence.testing.control_plane import InMemoryHandlerRegistry
 
 START_NODE = "START"
 END_NODE = "END"
@@ -73,18 +78,8 @@ class GraphValidationResult(BaseModel):
     protected_path_violations: list[str] = Field(default_factory=list)
 
 
-class InMemoryHandlerRegistry:
-    def __init__(self, handler_refs: list[RouteHandlerRef]) -> None:
-        self._handlers = {
-            ref.handler_name: ref.handler_kind for ref in handler_refs
-        }
-
-    def resolve(self, handler_name: str) -> str | None:
-        return self._handlers.get(handler_name)
-
-
 class GraphConfigValidator:
-    def __init__(self, *, handler_registry: InMemoryHandlerRegistry) -> None:
+    def __init__(self, *, handler_registry: HandlerRegistry) -> None:
         self.handler_registry = handler_registry
 
     def validate(
@@ -212,3 +207,27 @@ class GraphConfigValidator:
 
         walk(START_NODE, [])
         return paths
+
+
+__all__ = [
+    "END_NODE",
+    "GraphConfigValidator",
+    "GraphConfigVersion",
+    "GraphEdgeConfig",
+    "GraphNodeConfig",
+    "GraphValidationResult",
+    "InMemoryHandlerRegistry",
+    "PROTECTED_PROFILE",
+    "REQUIRED_PR_PATH_NODES",
+    "REQUIRED_SYSTEM_NODES",
+    "RouteHandlerRef",
+    "START_NODE",
+]
+
+
+def __getattr__(name: str):
+    if name == "InMemoryHandlerRegistry":
+        from backend.persistence.testing.control_plane import InMemoryHandlerRegistry
+
+        return InMemoryHandlerRegistry
+    raise AttributeError(name)

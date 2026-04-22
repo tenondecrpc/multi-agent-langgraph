@@ -5,6 +5,7 @@ import {
   agentCards,
   initialRuns,
   invalidGraphCandidate,
+  persistenceStatus,
   roles,
   spriteManifest,
   type OperatorRole,
@@ -379,6 +380,47 @@ export default function App() {
                     <span>Fallbacks today</span>
                     <strong>4</strong>
                   </div>
+                </div>
+              </section>
+              <section className="panel">
+                <div className="panel-header">
+                  <h2>{t(locale, "persistenceStatus")}</h2>
+                  <span className="legend">Text labels mirror color state.</span>
+                </div>
+                <div className="status-grid">
+                  <article className="metric-card">
+                    <span>{t(locale, "migrationVersion")}</span>
+                    <strong>{persistenceStatus.migrationVersion}</strong>
+                  </article>
+                  <article className="metric-card">
+                    <span>{t(locale, "appliedVersion")}</span>
+                    <strong>{persistenceStatus.appliedVersion}</strong>
+                  </article>
+                  <article className="metric-card">
+                    <span>{t(locale, "activeSnapshot")}</span>
+                    <strong>{persistenceStatus.activeSnapshotId}</strong>
+                  </article>
+                </div>
+                <h3>{t(locale, "adapterReadiness")}</h3>
+                <div className="status-grid" role="list">
+                  {persistenceStatus.adapters.map((adapter) => (
+                    <article className="run-card" key={adapter.name} role="listitem">
+                      <strong>{adapter.name}</strong>
+                      <p>
+                        {t(locale, "configured")}: {adapter.configured ? "yes" : "no"}
+                      </p>
+                      <p>
+                        {t(locale, "healthy")}: {adapter.healthy ? "yes" : "no"}
+                      </p>
+                      <span
+                        className={
+                          adapter.healthy ? "status-pill status-completed" : "status-pill status-paused"
+                        }
+                      >
+                        {adapter.healthy ? t(locale, "healthy") : t(locale, "degraded")}
+                      </span>
+                    </article>
+                  ))}
                 </div>
               </section>
             </div>

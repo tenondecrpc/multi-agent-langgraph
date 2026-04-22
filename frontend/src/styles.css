@@ -192,6 +192,7 @@ textarea:focus-visible {
 
 .run-grid,
 .metrics-grid,
+.status-grid,
 .control-room {
   display: grid;
   gap: 0.85rem;
@@ -203,6 +204,11 @@ textarea:focus-visible {
 
 .metrics-grid {
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.status-grid {
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  margin-bottom: 1rem;
 }
 
 .run-card,

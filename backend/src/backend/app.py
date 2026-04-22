@@ -1,8 +1,12 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, FastAPI, HTTPException
+from contextlib import asynccontextmanager
+
+from fastapi import APIRouter, FastAPI, HTTPException, Response
 from pydantic import BaseModel, Field
 
+from .persistence.factory import PersistenceAdapters, build_persistence_adapters
+from .persistence.migrations import MigrationRunner
 from .platform import build_platform_routers
 from .runtime import ExecutionRequest, PlanningRequest, RuntimeWorkflow, TicketRunState
 
@@ -13,20 +17,64 @@ class RuntimeSimulationRequest(BaseModel):
     escalation_sinks: dict[str, str] | None = None
 
 
-def create_app(workflow: RuntimeWorkflow | None = None) -> FastAPI:
-    app = FastAPI(title="LangGraph Dev Squad Backend", version="0.1.0")
-    runtime_workflow = workflow or RuntimeWorkflow()
+def create_app(
+    workflow: RuntimeWorkflow | None = None,
+    persistence: PersistenceAdapters | None = None,
+    migration_runner: MigrationRunner | None = None,
+) -> FastAPI:
+    adapters = persistence or build_persistence_adapters()
+    runner = migration_runner or MigrationRunner()
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        status = runner.ensure_current()
+        app.state.persistence_migration_status = status
+        adapters.health.update_migration_status(status)
+        adapters.telemetry.set_gauge(
+            "devsquad_persistence_migration_info",
+            1.0,
+            revision=status.current_revision or "none",
+        )
+        try:
+            snapshot = adapters.control_plane_store.active_snapshot()
+            adapters.health.update_active_snapshot_id(snapshot.snapshot_id)
+        except Exception:
+            adapters.health.update_active_snapshot_id(None)
+        yield
+
+    app = FastAPI(title="LangGraph Dev Squad Backend", version="0.1.0", lifespan=lifespan)
+    app.state.persistence = adapters
+    runtime_workflow = workflow or RuntimeWorkflow(repository=adapters.run_repository)
 
     system_router = APIRouter(tags=["system"])
     runtime_router = APIRouter(prefix="/api/v1/runtime", tags=["runtime"])
 
     @system_router.get("/healthz")
-    def healthz() -> dict[str, str]:
-        return {"status": "ok"}
+    def healthz(response: Response) -> dict[str, object]:
+        probe = adapters.health.liveness()
+        response.status_code = 200 if probe.status == "ok" else 503
+        return {
+            "status": probe.status,
+            "reasons": probe.reasons,
+            "persistence": adapters.health.snapshot().model_dump(mode="json"),
+        }
 
     @system_router.get("/readyz")
-    def readyz() -> dict[str, str]:
-        return {"status": "ready"}
+    def readyz(response: Response) -> dict[str, object]:
+        probe = adapters.health.readiness()
+        response.status_code = 200 if probe.status == "ok" else 503
+        return {
+            "status": probe.status,
+            "reasons": probe.reasons,
+            "persistence": adapters.health.snapshot().model_dump(mode="json"),
+        }
+
+    @system_router.get("/metrics")
+    def metrics() -> Response:
+        return Response(
+            content=adapters.telemetry.render_prometheus(),
+            media_type="text/plain; version=0.0.4",
+        )
 
     @runtime_router.post("/simulate", response_model=TicketRunState)
     def simulate_run(request: RuntimeSimulationRequest) -> TicketRunState:
@@ -41,7 +89,10 @@ def create_app(workflow: RuntimeWorkflow | None = None) -> FastAPI:
 
     app.include_router(system_router)
     app.include_router(runtime_router)
-    for router in build_platform_routers():
+    for router in build_platform_routers(
+        worker_controller=adapters.worker_controller,
+        webhook_guard=adapters.webhook_guard,
+    ):
         app.include_router(router)
     return app
 

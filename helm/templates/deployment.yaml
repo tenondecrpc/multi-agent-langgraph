@@ -1,0 +1,57 @@
+{{- if not .Values.rollout.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dev-squad-backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: dev-squad-backend
+  template:
+    metadata:
+      labels:
+        app: dev-squad-backend
+    spec:
+      serviceAccountName: dev-squad-backend
+      containers:
+        - name: backend
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.service.port }}
+          env:
+            - name: BACKEND_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.database.secretName }}
+                  key: {{ .Values.database.urlKey }}
+            - name: BACKEND_REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.redis.secretName }}
+                  key: {{ .Values.redis.urlKey }}
+            - name: BACKEND_DATABASE_POOL_SIZE
+              value: "{{ .Values.database.poolSize }}"
+            - name: BACKEND_DATABASE_STATEMENT_TIMEOUT_MS
+              value: "{{ .Values.database.statementTimeoutMs }}"
+            - name: BACKEND_ENCRYPTION_PROVIDER
+              value: "{{ .Values.encryption.provider }}"
+            - name: BACKEND_ENCRYPTION_ACTIVE_KEY_ID
+              value: "{{ .Values.encryption.activeKeyId }}"
+            - name: BACKEND_ENCRYPTION_ACTIVE_WRAPPING_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.encryption.wrappingSecretName }}
+                  key: {{ .Values.encryption.wrappingKeyKey }}
+            - name: BACKEND_ENCRYPTION_PREVIOUS_KEY_IDS
+              value: "{{ .Values.encryption.previousKeyIds }}"
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: {{ .Values.service.port }}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: {{ .Values.service.port }}
+{{- end }}

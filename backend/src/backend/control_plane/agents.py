@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
-from backend.governance import InMemoryModelCatalog
 from backend.governance.catalog import DeploymentProfile, RuntimeRole
+from backend.persistence.contracts import ModelCatalog
 
 RUNTIME_ROLE_TOOL_ALLOWLIST: dict[RuntimeRole, set[str]] = {
     "planner": {
@@ -46,7 +46,7 @@ class AgentConfigValidator:
     def __init__(
         self,
         *,
-        model_catalog: InMemoryModelCatalog,
+        model_catalog: ModelCatalog,
         deployment_profile: DeploymentProfile,
     ) -> None:
         self.model_catalog = model_catalog

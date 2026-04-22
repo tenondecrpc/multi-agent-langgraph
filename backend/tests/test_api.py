@@ -6,8 +6,21 @@ from backend.app import create_app
 def test_health_endpoints_report_ready() -> None:
     client = TestClient(create_app())
 
-    assert client.get("/healthz").json() == {"status": "ok"}
-    assert client.get("/readyz").json() == {"status": "ready"}
+    health = client.get("/healthz")
+    ready = client.get("/readyz")
+    metrics = client.get("/metrics")
+
+    assert health.status_code == 200
+    assert health.json()["status"] == "ok"
+    assert "persistence" in health.json()
+
+    assert ready.status_code == 200
+    assert ready.json()["status"] == "ok"
+    assert "persistence" in ready.json()
+
+    assert metrics.status_code == 200
+    assert "devsquad_database_pool_utilisation_ratio" in metrics.text
+    assert "devsquad_persistence_migration_info" in metrics.text
 
 
 def test_simulate_runtime_flow_returns_completed_run() -> None:
@@ -30,6 +43,20 @@ def test_simulate_runtime_flow_returns_completed_run() -> None:
     assert payload["ticket_key"] == "ENG-42"
     assert payload["pr_created"] is True
     assert payload["status"] == "completed"
+    assert payload["node_history"] == [
+        "intake",
+        "load_constitution",
+        "create_feature_spec",
+        "clarify",
+        "create_plan",
+        "create_task_list",
+        "readiness_gate",
+        "coder",
+        "tester",
+        "reviewer",
+        "pre_pr_sync",
+        "pr_creator",
+    ]
 
 
 def test_simulate_runtime_flow_accepts_ticket_id_alias() -> None:

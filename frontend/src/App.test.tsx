@@ -42,4 +42,18 @@ describe("App", () => {
       screen.getByText("Upload API not implemented yet. Request would return 501."),
     ).toBeInTheDocument();
   });
+
+  it("shows persistence status details in the admin panel", () => {
+    render(<App />);
+
+    fireEvent.change(screen.getByLabelText("Role"), {
+      target: { value: "admin" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Admin" }));
+
+    expect(screen.getByText("Persistence status")).toBeInTheDocument();
+    expect(screen.getAllByText("20260418_0006")).toHaveLength(2);
+    expect(screen.getByText("snapshot-prod-0042")).toBeInTheDocument();
+    expect(screen.getAllByText("Healthy")).toHaveLength(3);
+  });
 });

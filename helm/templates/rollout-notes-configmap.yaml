@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dev-squad-rollout-notes
+data:
+  canary.md: |
+    Progressive delivery for persistence cutover follows 5/25/50/100 weight steps.
+    Monitor migration drift, DLQ depth, provider breaker state, and burn-rate alerts.
+    Roll back automatically if readiness or SLO probes regress.

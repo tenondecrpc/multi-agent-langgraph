@@ -30,6 +30,19 @@ export type AgentCard = {
   testPrompt: string;
 };
 
+export type PersistenceAdapterStatus = {
+  name: string;
+  configured: boolean;
+  healthy: boolean;
+};
+
+export type PersistenceStatusCard = {
+  migrationVersion: string;
+  appliedVersion: string;
+  activeSnapshotId: string;
+  adapters: PersistenceAdapterStatus[];
+};
+
 export const roles: OperatorRole[] = ["viewer", "operator", "admin", "super-admin"];
 
 export const initialRuns: RunCard[] = [
@@ -160,3 +173,14 @@ export const spriteManifest = [
     path: "/assets/sprites/reviewer-paused.svg",
   },
 ];
+
+export const persistenceStatus: PersistenceStatusCard = {
+  migrationVersion: "20260418_0006",
+  appliedVersion: "20260418_0006",
+  activeSnapshotId: "snapshot-prod-0042",
+  adapters: [
+    { name: "database", configured: true, healthy: true },
+    { name: "redis", configured: true, healthy: true },
+    { name: "encryption", configured: true, healthy: true },
+  ],
+};

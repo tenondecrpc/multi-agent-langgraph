@@ -1,3 +1,19 @@
-# Helm Scaffold
+# Helm Chart
 
-This directory is reserved for the connected and `air_gapped` Helm charts that will be implemented in later phases.
+This directory now contains the baseline chart for the persistence-backed runtime.
+
+## Render Commands
+
+- Connected profile:
+  - `helm template dev-squad ./helm -f ./helm/values.yaml`
+- Air-gapped profile:
+  - `helm template dev-squad ./helm -f ./helm/values.yaml -f ./helm/values-air-gapped.yaml`
+
+## High-Risk Items
+
+- PostgreSQL and Redis connection settings
+- Vault and External Secrets Operator wiring
+- NetworkPolicy egress restrictions
+- Rollout strategy and readiness gates
+
+These are high-risk because they affect startup, secret delivery, and persistence cutover behaviour.

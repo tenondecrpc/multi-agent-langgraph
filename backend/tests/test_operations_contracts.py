@@ -4,12 +4,15 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 from backend.operations import (
+    BackupRecord,
     BurnRateAlertPolicy,
     CoveragePolicy,
     CoverageWaiver,
     DashboardDefinition,
     DataCategory,
+    EnvironmentProfile,
     ErrorBudgetState,
+    FeatureFlagDefinition,
     IncidentRecord,
     IncidentSeverity,
     LogEvent,
@@ -153,6 +156,42 @@ def test_release_policy_blocks_missing_gates_and_rolls_back_on_regression() -> N
     assert rollout_decision.rollback is True
 
 
+def test_persistence_canary_release_requires_kill_switch_coverage() -> None:
+    policy = ReleasePolicy(
+        stages=[],
+        environments=[
+            EnvironmentProfile(
+                environment_name="canary",
+                purpose="persistence rollout",
+                production_mirror=True,
+            )
+        ],
+        feature_flags=[
+            FeatureFlagDefinition(flag_id="ops-webhook-guard-cutover", flag_type="kill_switch"),
+            FeatureFlagDefinition(flag_id="ops-run-repository-cutover", flag_type="kill_switch"),
+            FeatureFlagDefinition(flag_id="ops-control-plane-store-cutover", flag_type="kill_switch"),
+            FeatureFlagDefinition(flag_id="ops-worker-controller-cutover", flag_type="kill_switch"),
+            FeatureFlagDefinition(flag_id="ops-budget-ledger-cutover", flag_type="kill_switch"),
+            FeatureFlagDefinition(flag_id="ops-metering-ledger-cutover", flag_type="kill_switch"),
+            FeatureFlagDefinition(flag_id="ops-model-catalog-cutover", flag_type="kill_switch"),
+            FeatureFlagDefinition(flag_id="ops-provider-health-cutover", flag_type="kill_switch"),
+        ],
+    )
+
+    rollout_decision = policy.evaluate_rollout(
+        RolloutAnalysis(
+            error_budget_burn_rate=Decimal("0.7"),
+            health_regressed=False,
+            kill_switch_engaged=True,
+        )
+    )
+
+    assert policy.environment("canary").production_mirror is True
+    assert policy.feature_flag("ops-provider-health-cutover").flag_type == "kill_switch"
+    assert rollout_decision.rollback is True
+    assert rollout_decision.reasons == ["kill_switch_engaged"]
+
+
 def test_resilience_planner_enforces_dr_objectives_and_ha_controls() -> None:
     planner = ResiliencePlanner()
     assessment = planner.assess_dr(
@@ -182,6 +221,52 @@ def test_resilience_planner_enforces_dr_objectives_and_ha_controls() -> None:
 
     assert assessment.continuity_controls_ready is True
     assert replica_assessment.continuity_controls_ready is True
+
+
+def test_persistence_backup_coverage_includes_new_tables_and_rpo_window() -> None:
+    planner = ResiliencePlanner()
+    now = datetime.now(tz=UTC)
+
+    coverage = planner.validate_backup_coverage(
+        BackupRecord(
+            backup_id="backup-1",
+            created_at=now - timedelta(minutes=10),
+            verified=True,
+            wal_archived=True,
+            table_names=[
+                "runs",
+                "webhook_idempotency_records",
+                "dead_letter_records",
+                "budget_reservations",
+                "budget_charges",
+                "budget_denials",
+                "metering_facts",
+                "metering_hourly_rollups",
+                "model_catalog_entries",
+                "role_token_policies",
+                "provider_health_events",
+            ],
+        ),
+        required_tables={
+            "runs",
+            "webhook_idempotency_records",
+            "dead_letter_records",
+            "budget_reservations",
+            "budget_charges",
+            "budget_denials",
+            "metering_facts",
+            "metering_hourly_rollups",
+            "model_catalog_entries",
+            "role_token_policies",
+            "provider_health_events",
+        },
+        max_backup_age_minutes=15,
+        now=now,
+    )
+
+    assert coverage.meets_rpo is True
+    assert coverage.meets_rto is True
+    assert coverage.continuity_controls_ready is True
 
 
 def test_retention_service_keeps_pinned_records_and_audits_cleanup() -> None:

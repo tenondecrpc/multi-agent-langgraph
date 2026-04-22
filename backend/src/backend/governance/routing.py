@@ -2,11 +2,17 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from enum import StrEnum
+from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, Field
 
+from backend.persistence.contracts import ModelCatalog, ProviderHealthStore
+
 from .budget import BudgetContext
-from .catalog import DeploymentProfile, InMemoryModelCatalog, RuntimeRole
+from .catalog import DeploymentProfile, RuntimeRole
+
+if TYPE_CHECKING:
+    from backend.persistence.testing.governance import InMemoryProviderHealthStore
 
 
 class RoleModelAssignment(BaseModel):
@@ -41,64 +47,12 @@ class ProviderRoutingError(Exception):
         self.reason = reason
 
 
-class InMemoryProviderHealthStore:
-    def __init__(
-        self,
-        *,
-        failure_threshold: int = 2,
-        recovery_probe_limit: int = 1,
-    ) -> None:
-        self.failure_threshold = failure_threshold
-        self.recovery_probe_limit = recovery_probe_limit
-        self._snapshots: dict[str, ProviderHealthSnapshot] = {}
-
-    def snapshot(self, provider_id: str) -> ProviderHealthSnapshot:
-        return self._ensure(provider_id).model_copy(deep=True)
-
-    def record_failure(self, provider_id: str) -> None:
-        snapshot = self._ensure(provider_id)
-        snapshot.consecutive_failures += 1
-        if snapshot.consecutive_failures >= self.failure_threshold:
-            snapshot.state = ProviderHealthState.OPEN
-            snapshot.remaining_probe_attempts = 0
-        snapshot.updated_at = datetime.now(tz=UTC)
-
-    def record_success(self, provider_id: str) -> None:
-        snapshot = self._ensure(provider_id)
-        snapshot.state = ProviderHealthState.CLOSED
-        snapshot.consecutive_failures = 0
-        snapshot.remaining_probe_attempts = 0
-        snapshot.updated_at = datetime.now(tz=UTC)
-
-    def move_to_half_open(self, provider_id: str) -> None:
-        snapshot = self._ensure(provider_id)
-        snapshot.state = ProviderHealthState.HALF_OPEN
-        snapshot.remaining_probe_attempts = self.recovery_probe_limit
-        snapshot.updated_at = datetime.now(tz=UTC)
-
-    def allow_request(self, provider_id: str) -> bool:
-        snapshot = self._ensure(provider_id)
-        if snapshot.state == ProviderHealthState.OPEN:
-            return False
-        if snapshot.state == ProviderHealthState.HALF_OPEN:
-            if snapshot.remaining_probe_attempts <= 0:
-                return False
-            snapshot.remaining_probe_attempts -= 1
-            snapshot.updated_at = datetime.now(tz=UTC)
-        return True
-
-    def _ensure(self, provider_id: str) -> ProviderHealthSnapshot:
-        if provider_id not in self._snapshots:
-            self._snapshots[provider_id] = ProviderHealthSnapshot(provider_id=provider_id)
-        return self._snapshots[provider_id]
-
-
 class RuleBasedProviderRouter:
     def __init__(
         self,
         *,
-        model_catalog: InMemoryModelCatalog,
-        health_store: InMemoryProviderHealthStore,
+        model_catalog: ModelCatalog,
+        health_store: ProviderHealthStore,
         role_assignments: list[RoleModelAssignment],
     ) -> None:
         self.model_catalog = model_catalog
@@ -153,3 +107,22 @@ class RuleBasedProviderRouter:
             )
 
         raise ProviderRoutingError("all_providers_unavailable")
+
+
+__all__ = [
+    "InMemoryProviderHealthStore",
+    "ProviderHealthSnapshot",
+    "ProviderHealthState",
+    "ProviderRoutingError",
+    "ProviderSelection",
+    "RoleModelAssignment",
+    "RuleBasedProviderRouter",
+]
+
+
+def __getattr__(name: str):
+    if name == "InMemoryProviderHealthStore":
+        from backend.persistence.testing.governance import InMemoryProviderHealthStore
+
+        return InMemoryProviderHealthStore
+    raise AttributeError(name)

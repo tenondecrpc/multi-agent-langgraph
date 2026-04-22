@@ -1,0 +1,18 @@
+profile: air_gapped
+
+database:
+  tlsEnabled: true
+
+redis:
+  tlsEnabled: true
+
+encryption:
+  provider: vault
+  activeKeyId: kek-airgap-v1
+
+networkPolicy:
+  denyExternalLlmEgress: true
+  allowedCidrs: []
+
+rollout:
+  enabled: false

@@ -15,6 +15,7 @@ The current backend implements every stateful subsystem (ticket run repository, 
 - Replace `InMemoryWebhookGuard` with a PostgreSQL idempotency table (HMAC digest, tenant, received-at, status) and a Redis short-window deduplication cache.
 - Add a persistence health surface (liveness, readiness, migration status) wired into existing observability and DR runbooks; graceful shutdown must flush to Postgres and ARQ checkpoint boundaries.
 - Keep all existing `InMemory*` classes available only as test doubles behind a common interface; production factories must never instantiate them.
+- Explicitly defer the optional `pgvector` runtime capability to the dedicated `optional-internal-rag-via-pgvector` change. This change only preserves the no-new-datastore boundary and the persistence hooks needed to add `pgvector` later without reworking the data plane.
 - **BREAKING** for internal callers that construct `InMemory*` classes directly: they must now obtain instances from the persistence factory (DI container) and pass tenant and team context.
 
 ## Capabilities

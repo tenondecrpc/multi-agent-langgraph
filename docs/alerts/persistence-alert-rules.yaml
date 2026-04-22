@@ -1,0 +1,39 @@
+groups:
+  - name: persistence-backbone
+    rules:
+      - alert: PersistenceMigrationDrift
+        expr: devsquad_persistence_migration_info{revision="unknown"} == 1
+        for: 5m
+        labels:
+          severity: page
+          subsystem: persistence
+        annotations:
+          summary: Persistence migration revision is missing
+          runbook: docs/runbooks/persistence-disaster-recovery.md
+      - alert: PersistenceDlqGrowth
+        expr: increase(devsquad_dlq_depth[15m]) > 5
+        for: 10m
+        labels:
+          severity: page
+          subsystem: persistence
+        annotations:
+          summary: Dead letter queue depth is growing
+          runbook: docs/runbooks/persistence-dlq-growth.md
+      - alert: ProviderCircuitBreakerOpen
+        expr: devsquad_provider_circuit_breaker_state == 0
+        for: 5m
+        labels:
+          severity: page
+          subsystem: persistence
+        annotations:
+          summary: Shared provider circuit breaker is open
+          runbook: docs/runbooks/persistence-breaker-open.md
+      - alert: EnvelopeKeyRotationOverdue
+        expr: devsquad_encryption_rotation_due_total > 0
+        for: 30m
+        labels:
+          severity: warning
+          subsystem: persistence
+        annotations:
+          summary: Envelope-encryption rotation SLA is overdue
+          runbook: docs/runbooks/persistence-backup-restore.md

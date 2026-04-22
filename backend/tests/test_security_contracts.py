@@ -80,6 +80,8 @@ def test_webhook_guard_rejects_invalid_stale_duplicate_and_rate_limited_requests
         signature="",
         timestamp=1_000,
         event_id="evt-1",
+        tenant_id="tenant-alpha",
+        team_id="team-core",
         remote_addr="10.0.0.1",
     )
     valid_request.signature = guard.sign(valid_request.body, valid_request.timestamp)

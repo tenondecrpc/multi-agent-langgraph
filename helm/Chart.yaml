@@ -1,0 +1,6 @@
+apiVersion: v2
+name: langgraph-dev-squad
+description: Persistence-backed baseline chart for LangGraph Dev Squad
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

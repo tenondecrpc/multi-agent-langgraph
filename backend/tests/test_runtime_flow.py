@@ -1,11 +1,11 @@
 import pytest
 
+from backend.persistence.testing.runtime import InMemoryRunRepository
 from backend.runtime import (
     ContextRequest,
     ContextSource,
     EscalationReason,
     ExecutionRequest,
-    InMemoryRunRepository,
     LocalFirstContextResolver,
     PlanningRequest,
     RunNode,
@@ -70,6 +70,20 @@ def test_success_path_creates_pr_when_guards_pass() -> None:
     assert run.pre_pr_sync_passed is True
     assert run.pr_created is True
     assert run.status == RunStatus.COMPLETED
+    assert run.node_history == [
+        RunNode.INTAKE,
+        RunNode.LOAD_CONSTITUTION,
+        RunNode.CREATE_FEATURE_SPEC,
+        RunNode.CLARIFY,
+        RunNode.CREATE_PLAN,
+        RunNode.CREATE_TASK_LIST,
+        RunNode.READINESS_GATE,
+        RunNode.CODER,
+        RunNode.TESTER,
+        RunNode.REVIEWER,
+        RunNode.PRE_PR_SYNC,
+        RunNode.PR_CREATOR,
+    ]
 
 
 def test_required_test_failures_retry_then_pause() -> None:

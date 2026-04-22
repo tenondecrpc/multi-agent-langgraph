@@ -4,6 +4,9 @@ from typing import TypedDict
 
 from langgraph.graph import END, START, StateGraph
 
+from backend.persistence.contracts import RunRepository
+from backend.persistence.factory import build_persistence_adapters
+
 from .context import LocalFirstContextResolver
 from .models import (
     EscalationReason,
@@ -11,10 +14,10 @@ from .models import (
     PlanningRequest,
     RunNode,
     RunStatus,
+    TenantContext,
     TicketRunState,
 )
 from .planner import RuleBasedPlannerArtifactService, StaticConstitutionLoader
-from .store import InMemoryRunRepository
 
 
 class WorkflowState(TypedDict):
@@ -31,12 +34,12 @@ class RuntimeWorkflow:
         constitution_loader: StaticConstitutionLoader | None = None,
         planner: RuleBasedPlannerArtifactService | None = None,
         context_resolver: LocalFirstContextResolver | None = None,
-        repository: InMemoryRunRepository | None = None,
+        repository: RunRepository | None = None,
     ) -> None:
         self.constitution_loader = constitution_loader or StaticConstitutionLoader()
         self.planner = planner or RuleBasedPlannerArtifactService()
         self.context_resolver = context_resolver or LocalFirstContextResolver()
-        self.repository = repository or InMemoryRunRepository()
+        self.repository = repository or build_persistence_adapters().run_repository
         self.graph = self._build_graph()
 
     def execute(
@@ -61,8 +64,13 @@ class RuntimeWorkflow:
         final_run = self.repository.save(result["run"])
         return final_run
 
-    def resume(self, thread_id: str) -> TicketRunState:
-        return self.repository.resume(thread_id)
+    def resume(
+        self,
+        thread_id: str,
+        *,
+        tenant_context: TenantContext | None = None,
+    ) -> TicketRunState:
+        return self.repository.resume(thread_id, tenant_context=tenant_context)
 
     @staticmethod
     def default_escalation_sinks() -> dict[str, str]:
@@ -151,7 +159,7 @@ class RuntimeWorkflow:
 
     def _load_constitution(self, state: WorkflowState) -> dict[str, TicketRunState]:
         run = state["run"]
-        run.current_node = RunNode.LOAD_CONSTITUTION
+        run.transition_to(RunNode.LOAD_CONSTITUTION)
         run.constitution = self.constitution_loader.load_for_run(
             run.tenant_id, run.repo_id, run.config_snapshot_id
         )
@@ -161,7 +169,7 @@ class RuntimeWorkflow:
     def _create_feature_spec(self, state: WorkflowState) -> dict[str, TicketRunState]:
         run = state["run"]
         planning_request = state["planning_request"]
-        run.current_node = RunNode.CREATE_FEATURE_SPEC
+        run.transition_to(RunNode.CREATE_FEATURE_SPEC)
         context_request = self.planner.build_context_request(run, planning_request)
         context_bundle = self.context_resolver.resolve(context_request)
         run.feature_spec = self.planner.create_feature_spec(run, planning_request, context_bundle)
@@ -171,7 +179,7 @@ class RuntimeWorkflow:
     def _clarify(self, state: WorkflowState) -> dict[str, TicketRunState]:
         run = state["run"]
         planning_request = state["planning_request"]
-        run.current_node = RunNode.CLARIFY
+        run.transition_to(RunNode.CLARIFY)
 
         if run.clarification_notes is None:
             run.clarification_notes = self.planner.create_clarification_notes(run, planning_request)
@@ -199,7 +207,7 @@ class RuntimeWorkflow:
     def _create_plan(self, state: WorkflowState) -> dict[str, TicketRunState]:
         run = state["run"]
         planning_request = state["planning_request"]
-        run.current_node = RunNode.CREATE_PLAN
+        run.transition_to(RunNode.CREATE_PLAN)
         run.implementation_plan = self.planner.create_implementation_plan(run, planning_request)
         self.planner.record_artifact_hash(run, run.implementation_plan)
         return {"run": run}
@@ -207,7 +215,7 @@ class RuntimeWorkflow:
     def _create_task_list(self, state: WorkflowState) -> dict[str, TicketRunState]:
         run = state["run"]
         planning_request = state["planning_request"]
-        run.current_node = RunNode.CREATE_TASK_LIST
+        run.transition_to(RunNode.CREATE_TASK_LIST)
         task_list, ready, errors = self.planner.create_task_list(run, planning_request)
         run.task_list = task_list
         run.spec_ready_for_implementation = ready
@@ -222,7 +230,7 @@ class RuntimeWorkflow:
 
     def _readiness_gate(self, state: WorkflowState) -> dict[str, TicketRunState]:
         run = state["run"]
-        run.current_node = RunNode.READINESS_GATE
+        run.transition_to(RunNode.READINESS_GATE)
         if run.task_list is None or not run.spec_ready_for_implementation:
             run.escalation_reason = EscalationReason.INVALID_ROUTE_ATTEMPT
             run.paused_at_node = RunNode.READINESS_GATE
@@ -233,14 +241,14 @@ class RuntimeWorkflow:
 
     def _coder(self, state: WorkflowState) -> dict[str, TicketRunState]:
         run = state["run"]
-        run.current_node = RunNode.CODER
+        run.transition_to(RunNode.CODER)
         run.status = RunStatus.ACTIVE
         return {"run": run}
 
     def _tester(self, state: WorkflowState) -> dict[str, TicketRunState]:
         run = state["run"]
         execution_request = state["execution_request"]
-        run.current_node = RunNode.TESTER
+        run.transition_to(RunNode.TESTER)
 
         missing_or_skipped = execution_request.missing_required_tests or execution_request.skip_required_tests
         should_fail_tests = run.test_retry_count < execution_request.test_failures_before_pass
@@ -263,7 +271,7 @@ class RuntimeWorkflow:
     def _reviewer(self, state: WorkflowState) -> dict[str, TicketRunState]:
         run = state["run"]
         execution_request = state["execution_request"]
-        run.current_node = RunNode.REVIEWER
+        run.transition_to(RunNode.REVIEWER)
 
         if not run.tests_passed:
             run.escalation_reason = EscalationReason.INVALID_ROUTE_ATTEMPT
@@ -291,7 +299,7 @@ class RuntimeWorkflow:
     def _pre_pr_sync(self, state: WorkflowState) -> dict[str, TicketRunState]:
         run = state["run"]
         execution_request = state["execution_request"]
-        run.current_node = RunNode.PRE_PR_SYNC
+        run.transition_to(RunNode.PRE_PR_SYNC)
 
         if execution_request.diff_too_large:
             run.escalation_reason = EscalationReason.DIFF_TOO_LARGE
@@ -308,7 +316,7 @@ class RuntimeWorkflow:
 
     def _pr_creator(self, state: WorkflowState) -> dict[str, TicketRunState]:
         run = state["run"]
-        run.current_node = RunNode.PR_CREATOR
+        run.transition_to(RunNode.PR_CREATOR)
 
         if not (run.tests_passed and run.review_approved and run.pre_pr_sync_passed):
             run.escalation_reason = EscalationReason.INVALID_ROUTE_ATTEMPT
@@ -322,7 +330,7 @@ class RuntimeWorkflow:
     def _escalate(self, state: WorkflowState) -> dict[str, TicketRunState]:
         run = state["run"]
         escalation_sinks = state["escalation_sinks"]
-        run.current_node = RunNode.ESCALATE
+        run.transition_to(RunNode.ESCALATE)
         run.status = RunStatus.PAUSED
 
         if run.escalation_reason is None:
