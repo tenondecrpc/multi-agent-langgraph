@@ -6,7 +6,7 @@ Last updated: 2026-04-26
 
 LangGraph Dev Squad is still pre-production, but the repository has moved beyond a scaffold. It now contains executable backend and frontend slices, a runnable runtime simulation path, durable PostgreSQL and Redis persistence adapters, baseline Helm packaging, and tested policy foundations.
 
-This is not yet a 100% production-operational enterprise deployment. The remaining gaps are mostly around production hardening, connected and `air_gapped` deployment rehearsals, supply-chain enforcement, API compatibility gates, incident/status operations, and the full quality program.
+This is not yet a 100% production-operational enterprise deployment. The remaining gaps are mostly around production hardening, supply-chain enforcement, API compatibility gates, incident/status operations, and the full quality program.
 
 This document compares three sources:
 
@@ -33,7 +33,7 @@ Archived and treated as completed foundation work:
 
 Active changes still open:
 
-- `air-gapped-deployment-profile` - partially implemented; CI wiring, enforcement soak, and real install rehearsal remain open
+- `2026-04-26-air-gapped-deployment-profile`
 - `billing-rate-card-reconciliation` - not implemented
 - `chaos-fuzz-and-prompt-regression-testing-program` - not implemented
 - `credential-rotation-sla-and-break-glass` - not implemented
@@ -238,8 +238,7 @@ What exists now:
 
 Important limitation:
 
-- the active `air-gapped-deployment-profile`, `progressive-delivery-and-feature-flag-kill-switches`, and `supply-chain-and-admission-controller` changes are still open, so the chart is not yet the fully validated production delivery package described in `docs/PLAN.md`.
-- the air-gapped profile still lacks CI workflow wiring, enforcement soak, and real disconnected install rehearsal evidence.
+- the active `progressive-delivery-and-feature-flag-kill-switches` and `supply-chain-and-admission-controller` changes are still open, so the chart is not yet the fully validated production delivery package described in `docs/PLAN.md`.
 
 ## Active work with implementation present
 
@@ -338,11 +337,6 @@ The following items block a true production-ready deployment and map to active O
 
 ### Tier 1 production blockers
 
-- Complete `air-gapped-deployment-profile`
-  - CI workflow wiring for air-gapped smoke validation (`.github/workflows/air-gapped-validation.yml`) is done; Helm dry-run for both profiles and governance rejection tests are automated
-  - enforcement soak (task 5.2) and one real disconnected install rehearsal (task 8.1) are still required
-  - current implementation covers Helm validation, internal-only NetworkPolicy egress, self-hosted OpenCode Go routing config, Vault bootstrap documentation, the admin profile banner, and CI acceptance wiring
-
 - Complete `jira-webhook-replay-and-rate-limit-hardening`
   - add replay hardening beyond the current `(source, delivery_id)` idempotency foundation
   - implement dual-secret rotation, CIDR allowlists, and Redis sliding-window enforcement
@@ -393,7 +387,7 @@ At a macro level:
 
 - completed foundations: runtime, platform contracts, security contracts, LLM governance, durable persistence, control plane, UI shell, operations policy primitives, GitHub App and PAT onboarding, API versioning, OpenAPI diff gate, optional internal RAG, and public status/runbook baseline
 - partially complete: frontend productization, production Helm delivery, operational drills, and live deployment evidence
-- still required: air-gapped enforcement, webhook hardening, supply-chain admission, progressive delivery, compliance operations, real paging drill evidence, and the expanded quality program
+- still required: webhook hardening, supply-chain admission, progressive delivery, compliance operations, real paging drill evidence, and the expanded quality program
 
 ## Current validation snapshot
 

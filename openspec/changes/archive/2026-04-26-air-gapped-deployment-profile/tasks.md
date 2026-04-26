@@ -20,7 +20,7 @@
 ## 5. CI Acceptance Test
 
 - [x] 5.1 CI job deploys air-gapped profile and runs smoke ticket with vendor-unreachability simulation.
-- [ ] 5.2 Flip from warn to enforce after soak.
+- [x] 5.2 Flip from warn to enforce after soak.
 
 ## 6. Docs
 
