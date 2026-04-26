@@ -27,6 +27,10 @@ from backend.governance.catalog import (
 from backend.governance.metering import (
     HourlyUsageRollup,
     MeteringExportRequest,
+    RateCard,
+    RateCardCreate,
+    RateCardUpdate,
+    ReconciliationReport,
     ReconciliationResult,
     UsageRecord,
 )
@@ -192,6 +196,8 @@ class InMemoryBudgetLedger:
 class InMemoryMeteringLedger:
     def __init__(self) -> None:
         self._records: list[UsageRecord] = []
+        self._rate_cards: dict[str, RateCard] = {}
+        self._reconciliation_reports: list[ReconciliationReport] = []
 
     def record_usage(self, record: UsageRecord) -> None:
         self._records.append(record)
@@ -335,6 +341,7 @@ class InMemoryMeteringLedger:
             "estimated_cost_usd",
             "actual_cost_usd",
             "rate_card_id",
+            "provider_request_id",
             "trace_id",
             "span_id",
             "started_at",
@@ -351,6 +358,117 @@ class InMemoryMeteringLedger:
                 row = {"schema_version": "v2", **row}
             writer.writerow(row)
         return buffer.getvalue()
+
+    def list_rate_cards(
+        self,
+        *,
+        provider: str | None = None,
+        status: str | None = None,
+    ) -> list[RateCard]:
+        cards = list(self._rate_cards.values())
+        if provider:
+            cards = [c for c in cards if c.provider == provider]
+        if status:
+            cards = [c for c in cards if c.status == status]
+        return sorted(cards, key=lambda c: c.effective_from, reverse=True)
+
+    def get_rate_card(self, rate_card_id: str) -> RateCard | None:
+        return self._rate_cards.get(rate_card_id)
+
+    def create_rate_card(self, data: RateCardCreate) -> RateCard:
+        rate_card_id = data.metadata.pop("rate_card_id", str(uuid4()))
+        card = RateCard(
+            rate_card_id=rate_card_id,
+            provider=data.provider,
+            model=data.model,
+            unit=data.unit,
+            rate_usd=data.rate_usd,
+            effective_from=data.effective_from,
+            effective_to=data.effective_to,
+            created_by=data.created_by,
+            metadata=data.metadata,
+        )
+        self._rate_cards[rate_card_id] = card
+        return card
+
+    def update_rate_card(self, rate_card_id: str, data: RateCardUpdate) -> RateCard | None:
+        card = self._rate_cards.get(rate_card_id)
+        if card is None:
+            return None
+        if data.rate_usd is not None:
+            card.rate_usd = data.rate_usd
+        if data.effective_to is not None:
+            card.effective_to = data.effective_to
+        if data.metadata is not None:
+            card.metadata = data.metadata
+        return card
+
+    def activate_rate_card(self, rate_card_id: str, activated_by: str) -> RateCard | None:
+        card = self._rate_cards.get(rate_card_id)
+        if card is None:
+            return None
+        card.status = "active"
+        card.activated_by = activated_by
+        card.activated_at = datetime.now(tz=UTC)
+        return card
+
+    def delete_rate_card(self, rate_card_id: str) -> bool:
+        return self._rate_cards.pop(rate_card_id, None) is not None
+
+    def run_reconciliation(
+        self,
+        *,
+        tenant_id: str,
+        period_start: datetime,
+        period_end: datetime,
+        provider: str,
+        provider_reported_total_usd: Decimal,
+        mode: str = "dry_run",
+    ) -> ReconciliationReport:
+        facts = self._filtered_records(tenant_id, period_start, period_end)
+        provider_facts = [f for f in facts if f.provider_id == provider]
+        metered_total = sum((f.actual_cost_usd for f in provider_facts), start=Decimal("0"))
+        drift_amount = provider_reported_total_usd - metered_total
+        drift_percentage = (
+            (drift_amount / metered_total * 100) if metered_total > 0 else Decimal("0")
+        )
+        missing_ids = sum(1 for f in provider_facts if f.provider_request_id is None)
+        with_ids = [f for f in provider_facts if f.provider_request_id is not None]
+        matched = len(with_ids)
+        unmatched = len(provider_facts) - matched
+
+        report = ReconciliationReport(
+            report_id=str(uuid4()),
+            tenant_id=tenant_id,
+            period_start=period_start,
+            period_end=period_end,
+            provider=provider,
+            metered_total_usd=metered_total,
+            provider_reported_total_usd=provider_reported_total_usd,
+            drift_amount_usd=drift_amount,
+            drift_percentage=drift_percentage,
+            missing_provider_request_ids=missing_ids,
+            matched_usage_count=matched,
+            unmatched_usage_count=unmatched,
+            mode=mode,
+            usage_ids=[f.usage_id for f in provider_facts],
+        )
+        self._reconciliation_reports.append(report)
+        return report
+
+    def list_reconciliation_reports(
+        self,
+        *,
+        tenant_id: str | None = None,
+        provider: str | None = None,
+        limit: int = 50,
+    ) -> list[ReconciliationReport]:
+        reports = self._reconciliation_reports
+        if tenant_id:
+            reports = [r for r in reports if r.tenant_id == tenant_id]
+        if provider:
+            reports = [r for r in reports if r.provider == provider]
+        return sorted(reports, key=lambda r: r.created_at or datetime.now(tz=UTC), reverse=True)[:limit]
 
 
 class InMemoryModelCatalog:

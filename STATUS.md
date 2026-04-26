@@ -32,10 +32,10 @@ Archived and treated as completed foundation work:
 - `2026-04-26-public-status-page-and-incident-runbooks`
 - `2026-04-26-air-gapped-deployment-profile`
 - `2026-04-26-supply-chain-and-admission-controller`
+- `2026-04-26-billing-rate-card-reconciliation`
 
 Active changes still open:
 
-- `billing-rate-card-reconciliation` - not implemented
 - `chaos-fuzz-and-prompt-regression-testing-program` - not implemented
 - `credential-rotation-sla-and-break-glass` - not implemented
 - `data-retention-deletion-and-dpa-compliance` - not implemented
@@ -271,6 +271,32 @@ Important limitation:
 - ephemeral K3s integration test and air-gapped bundle verification are documented but require cluster infrastructure to execute
 - archive is blocked on enforce-mode stability in production
 
+### 11. Billing rate-card reconciliation
+
+Status: Implemented
+
+Covered OpenSpec change:
+
+- `2026-04-26-billing-rate-card-reconciliation`
+
+What exists now:
+
+- `price_rate_cards` table with versioned effective windows, audit, and shadow-mode validation (Alembic migration `20260426_0012`)
+- `provider_request_id` column on `metering_facts` for invoice line-item matching
+- `reconciliation_reports` table with drift tracking and dry-run/enforce modes
+- Admin API CRUD for rate cards at `/api/v1/billing/rate-cards/*`
+- Rate card activation with audit trail
+- Nightly reconciliation endpoint at `/api/v1/billing/reconcile` with dry-run mode
+- Drift alert at >2% with Prometheus metrics (`devsquad_billing_drift_percentage`, `devsquad_billing_drift_alerts_total`)
+- Finance export at `/api/v1/billing/export` with CSV and JSON (v1/v2) versions
+- Reconciliation report listing at `/api/v1/billing/reconciliation-reports`
+- Contract tests under `backend/tests/test_billing_rate_card_contracts.py` - 14 tests passing
+
+Important limitation:
+
+- reconciliation is operator-driven via API; full ARQ scheduled job requires worker queue integration
+- provider invoice ingestion is manual; no automatic provider invoice API integration
+
 ## Active work with implementation present
 
 ### GitHub App and PAT onboarding mechanics
@@ -388,9 +414,6 @@ The following items block a true production-ready deployment and map to active O
 
 These items may have documented degraded paths for GA, but they are still missing if the target is 100% implementation of the plan.
 
-- Complete `billing-rate-card-reconciliation`
-  - versioned rate cards, admin editor, nightly reconciliation, drift alerts, and JSON export
-
 - Finish the full visual graph editor experience
   - node, edge, route, and interrupt CRUD
   - activation and shadow-mode UX beyond the current read-only validation shell
@@ -421,7 +444,7 @@ At a macro level:
 Validation run during this status update (2026-04-26):
 
 - `uv run --project backend ruff check backend/src backend/tests scripts/lint_alert_runbooks.py` - passed
-- `uv run --project backend pytest` - passed, 152 passed, 1 skipped, 0 failed
+- `uv run --project backend pytest` - passed, 166 passed, 1 skipped, 0 failed
 - `npm run --prefix frontend test -- --run` - passed, 7 passed
 - `npm run --prefix frontend build` - passed
 - `helm template dev-squad ./helm -f ./helm/values.yaml` - passed

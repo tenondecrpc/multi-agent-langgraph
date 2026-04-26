@@ -40,6 +40,7 @@ class UsageRecord(BaseModel):
     estimated_cost_usd: Decimal
     actual_cost_usd: Decimal
     rate_card_id: str
+    provider_request_id: str | None = None
     trace_id: str
     span_id: str
     started_at: datetime
@@ -82,10 +83,68 @@ class ReconciliationResult(BaseModel):
     rollup_ids: list[str]
 
 
+class RateCard(BaseModel):
+    rate_card_id: str
+    provider: str
+    model: str
+    unit: str = "per_1k_tokens"
+    rate_usd: Decimal
+    effective_from: datetime
+    effective_to: datetime | None = None
+    version: int = 1
+    status: str = "draft"
+    created_by: str
+    activated_by: str | None = None
+    activated_at: datetime | None = None
+    metadata: dict = {}
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+
+class RateCardCreate(BaseModel):
+    provider: str
+    model: str
+    unit: str = "per_1k_tokens"
+    rate_usd: Decimal
+    effective_from: datetime
+    effective_to: datetime | None = None
+    created_by: str
+    metadata: dict = {}
+
+
+class RateCardUpdate(BaseModel):
+    rate_usd: Decimal | None = None
+    effective_to: datetime | None = None
+    metadata: dict | None = None
+
+
+class ReconciliationReport(BaseModel):
+    report_id: str
+    tenant_id: str
+    period_start: datetime
+    period_end: datetime
+    provider: str
+    metered_total_usd: Decimal
+    provider_reported_total_usd: Decimal
+    drift_amount_usd: Decimal
+    drift_percentage: Decimal
+    missing_provider_request_ids: int = 0
+    matched_usage_count: int = 0
+    unmatched_usage_count: int = 0
+    mode: str = "dry_run"
+    usage_ids: list[str] = []
+    rollup_ids: list[str] = []
+    created_at: datetime | None = None
+
+
 __all__ = [
     "HourlyUsageRollup",
     "InMemoryMeteringLedger",
     "MeteringExportRequest",
+    "RateCard",
+    "RateCardCreate",
+    "RateCardUpdate",
+    "ReconciliationReport",
     "ReconciliationResult",
     "UsageRecord",
     "UsageStatus",

@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 
 from .api_deprecations import ApiDeprecation
 from .api_versioning import ApiVersioningConfig, install_api_versioning
+from .billing import build_billing_router
 from .knowledge import (
     InternalRagSettings,
     KnowledgeRepository,
@@ -141,6 +142,11 @@ def create_app(
     from .supply_chain.admission import build_admission_router
 
     app.include_router(build_admission_router())
+    app.include_router(
+        build_billing_router(
+            metering_ledger=adapters.metering_ledger,
+        )
+    )
     return app
 
 

@@ -19,6 +19,10 @@ from backend.governance.budget import BudgetBalance, BudgetCaps, BudgetContext, 
 from backend.governance.metering import (
     HourlyUsageRollup,
     MeteringExportRequest,
+    RateCard,
+    RateCardCreate,
+    RateCardUpdate,
+    ReconciliationReport,
     ReconciliationResult,
     UsageRecord,
 )
@@ -36,7 +40,9 @@ from .schema import (
     metering_facts,
     metering_hourly_rollups,
     model_catalog_entries,
+    price_rate_cards,
     provider_health_events,
+    reconciliation_reports,
     role_token_policies,
 )
 from .telemetry import PersistenceTelemetry, bootstrap_telemetry
@@ -742,6 +748,7 @@ class PostgresMeteringLedger:
                         estimated_cost_usd=record.estimated_cost_usd,
                         actual_cost_usd=record.actual_cost_usd,
                         rate_card_id=record.rate_card_id,
+                        provider_request_id=record.provider_request_id,
                         trace_id=record.trace_id,
                         span_id=record.span_id,
                         started_at=record.started_at,
@@ -969,6 +976,197 @@ class PostgresMeteringLedger:
                 row = {"schema_version": "v2", **row}
             writer.writerow(row)
         return buffer.getvalue()
+
+    def list_rate_cards(
+        self,
+        *,
+        provider: str | None = None,
+        status: str | None = None,
+    ) -> list[RateCard]:
+        with self._engine.begin() as connection:
+            stmt = select(price_rate_cards)
+            if provider:
+                stmt = stmt.where(price_rate_cards.c.provider == provider)
+            if status:
+                stmt = stmt.where(price_rate_cards.c.status == status)
+            stmt = stmt.order_by(price_rate_cards.c.effective_from.desc())
+            rows = connection.execute(stmt).mappings().all()
+        return [RateCard.model_validate(row) for row in rows]
+
+    def get_rate_card(self, rate_card_id: str) -> RateCard | None:
+        with self._engine.begin() as connection:
+            row = connection.execute(
+                select(price_rate_cards).where(price_rate_cards.c.rate_card_id == rate_card_id)
+            ).mappings().first()
+        if row is None:
+            return None
+        return RateCard.model_validate(row)
+
+    def create_rate_card(self, data: RateCardCreate) -> RateCard:
+        rate_card_id = data.metadata.pop("rate_card_id", str(uuid4()))
+        with self._engine.begin() as connection:
+            connection.execute(
+                price_rate_cards.insert().values(
+                    rate_card_id=rate_card_id,
+                    provider=data.provider,
+                    model=data.model,
+                    unit=data.unit,
+                    rate_usd=data.rate_usd,
+                    effective_from=data.effective_from,
+                    effective_to=data.effective_to,
+                    created_by=data.created_by,
+                    metadata=data.metadata,
+                )
+            )
+        card = self.get_rate_card(rate_card_id)
+        if card is None:
+            raise RuntimeError(f"Failed to retrieve created rate card {rate_card_id}")
+        return card
+
+    def update_rate_card(self, rate_card_id: str, data: RateCardUpdate) -> RateCard | None:
+        existing = self.get_rate_card(rate_card_id)
+        if existing is None:
+            return None
+        updates: dict = {}
+        if data.rate_usd is not None:
+            updates["rate_usd"] = data.rate_usd
+        if data.effective_to is not None:
+            updates["effective_to"] = data.effective_to
+        if data.metadata is not None:
+            updates["metadata"] = data.metadata
+        if updates:
+            updates["updated_at"] = text("now()")
+            with self._engine.begin() as connection:
+                connection.execute(
+                    price_rate_cards.update()
+                    .where(price_rate_cards.c.rate_card_id == rate_card_id)
+                    .values(**updates)
+                )
+        return self.get_rate_card(rate_card_id)
+
+    def activate_rate_card(self, rate_card_id: str, activated_by: str) -> RateCard | None:
+        from datetime import UTC, datetime
+
+        existing = self.get_rate_card(rate_card_id)
+        if existing is None:
+            return None
+        with self._engine.begin() as connection:
+            connection.execute(
+                price_rate_cards.update()
+                .where(price_rate_cards.c.rate_card_id == rate_card_id)
+                .values(
+                    status="active",
+                    activated_by=activated_by,
+                    activated_at=datetime.now(tz=UTC),
+                    updated_at=text("now()"),
+                )
+            )
+        return self.get_rate_card(rate_card_id)
+
+    def delete_rate_card(self, rate_card_id: str) -> bool:
+        with self._engine.begin() as connection:
+            result = connection.execute(
+                price_rate_cards.delete().where(price_rate_cards.c.rate_card_id == rate_card_id)
+            )
+        return result.rowcount > 0
+
+    def run_reconciliation(
+        self,
+        *,
+        tenant_id: str,
+        period_start: datetime,
+        period_end: datetime,
+        provider: str,
+        provider_reported_total_usd: Decimal,
+        mode: str = "dry_run",
+    ) -> ReconciliationReport:
+        facts = self._facts_for_period(tenant_id=tenant_id, period_start=period_start, period_end=period_end)
+        provider_facts = [f for f in facts if f.provider_id == provider]
+        metered_total = sum((f.actual_cost_usd for f in provider_facts), start=Decimal("0"))
+        drift_amount = provider_reported_total_usd - metered_total
+        drift_percentage = (
+            (drift_amount / metered_total * 100) if metered_total > 0 else Decimal("0")
+        )
+        missing_ids = sum(1 for f in provider_facts if f.provider_request_id is None)
+        with_ids = [f for f in provider_facts if f.provider_request_id is not None]
+        matched = len(with_ids)
+        unmatched = len(provider_facts) - matched
+
+        report_id = str(uuid4())
+        report = ReconciliationReport(
+            report_id=report_id,
+            tenant_id=tenant_id,
+            period_start=period_start,
+            period_end=period_end,
+            provider=provider,
+            metered_total_usd=metered_total,
+            provider_reported_total_usd=provider_reported_total_usd,
+            drift_amount_usd=drift_amount,
+            drift_percentage=drift_percentage,
+            missing_provider_request_ids=missing_ids,
+            matched_usage_count=matched,
+            unmatched_usage_count=unmatched,
+            mode=mode,
+            usage_ids=[f.usage_id for f in provider_facts],
+            rollup_ids=[],
+        )
+        with self._engine.begin() as connection:
+            connection.execute(
+                reconciliation_reports.insert().values(
+                    report_id=report.report_id,
+                    tenant_id=report.tenant_id,
+                    period_start=report.period_start,
+                    period_end=report.period_end,
+                    provider=report.provider,
+                    metered_total_usd=report.metered_total_usd,
+                    provider_reported_total_usd=report.provider_reported_total_usd,
+                    drift_amount_usd=report.drift_amount_usd,
+                    drift_percentage=report.drift_percentage,
+                    missing_provider_request_ids=report.missing_provider_request_ids,
+                    matched_usage_count=report.matched_usage_count,
+                    unmatched_usage_count=report.unmatched_usage_count,
+                    mode=report.mode,
+                    usage_ids=report.usage_ids,
+                    rollup_ids=report.rollup_ids,
+                )
+            )
+        self._telemetry.set_gauge(
+            "devsquad_billing_drift_percentage",
+            float(drift_percentage),
+            tenant_id=tenant_id,
+            provider=provider,
+        )
+        self._telemetry.increment(
+            "devsquad_reconciliation_runs_total",
+            tenant_id=tenant_id,
+            provider=provider,
+            mode=mode,
+        )
+        if abs(drift_percentage) > 2:
+            self._telemetry.increment(
+                "devsquad_billing_drift_alerts_total",
+                tenant_id=tenant_id,
+                provider=provider,
+            )
+        return report
+
+    def list_reconciliation_reports(
+        self,
+        *,
+        tenant_id: str | None = None,
+        provider: str | None = None,
+        limit: int = 50,
+    ) -> list[ReconciliationReport]:
+        with self._engine.begin() as connection:
+            stmt = select(reconciliation_reports).order_by(
+                reconciliation_reports.c.created_at.desc()
+            ).limit(limit)
+            if tenant_id:
+                stmt = stmt.where(reconciliation_reports.c.tenant_id == tenant_id)
+            if provider:
+                stmt = stmt.where(reconciliation_reports.c.provider == provider)
+            rows = connection.execute(stmt).mappings().all()
+        return [ReconciliationReport.model_validate(row) for row in rows]
 
     @contextmanager
     def _scoped_transaction(self, tenant_id: str, team_id: str) -> Iterator[Connection]:
