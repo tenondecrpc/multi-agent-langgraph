@@ -1,3 +1,15 @@
+from .feature_flag_service import (
+    FeatureFlagService,
+    FlagToggleRecord,
+    StaleFlagAlert,
+)
+from .feature_flags import (
+    MANDATORY_KILL_SWITCHES,
+    FeatureFlagClient,
+    FlagEvaluation,
+    FlagProvider,
+    KillSwitchState,
+)
 from .observability import (
     DashboardDefinition,
     HealthProbeResult,
@@ -67,11 +79,18 @@ __all__ = [
     "EnvironmentProfile",
     "ErrorBudgetReport",
     "ErrorBudgetState",
+    "FeatureFlagClient",
     "FeatureFlagDefinition",
+    "FeatureFlagService",
+    "FlagEvaluation",
+    "FlagProvider",
+    "FlagToggleRecord",
     "HealthProbeResult",
     "IncidentRecord",
     "IncidentSeverity",
+    "KillSwitchState",
     "LogEvent",
+    "MANDATORY_KILL_SWITCHES",
     "MigrationPlan",
     "ObservabilityCatalog",
     "PipelineStage",
@@ -94,6 +113,7 @@ __all__ = [
     "SliEvaluator",
     "SliObservation",
     "StageEvaluationResult",
+    "StaleFlagAlert",
     "StatusUpdate",
     "StoredRecord",
 ]

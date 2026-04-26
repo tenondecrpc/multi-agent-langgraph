@@ -1,0 +1,80 @@
+{{- if .Values.rollout.enabled }}
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: api-slo-analysis
+spec:
+  args:
+    - name: service-name
+      value: "dev-squad-backend"
+    - name: namespace
+      value: "{{ .Release.Namespace }}"
+    - name: error-rate-threshold
+      value: "{{ .Values.analysis.errorRateThreshold }}"
+    - name: latency-p95-threshold-ms
+      value: "{{ .Values.analysis.latencyP95ThresholdMs }}"
+    - name: circuit-breaker-open-threshold
+      value: "{{ .Values.analysis.circuitBreakerOpenThreshold }}"
+    - name: dlq-growth-threshold
+      value: "{{ .Values.analysis.dlqGrowthThreshold }}"
+    - name: pool-saturation-threshold
+      value: "{{ .Values.analysis.poolSaturationThreshold }}"
+    - name: prometheus-address
+      value: "{{ .Values.analysis.prometheusAddress }}"
+  metrics:
+    - name: error-rate
+      interval: 60s
+      successCondition: result[0] < number(args.error-rate-threshold)
+      failureLimit: 1
+      provider:
+        prometheus:
+          address: "{{ .Values.analysis.prometheusAddress }}"
+          query: >
+            sum(rate(http_requests_total{service="{{ .Values.analysis.prometheusAddress }}",status=~"5.."}[5m]))
+            /
+            sum(rate(http_requests_total{service="{{ .Values.analysis.prometheusAddress }}"}[5m]))
+
+    - name: latency-p95
+      interval: 60s
+      successCondition: result[0] < number(args.latency-p95-threshold-ms)
+      failureLimit: 1
+      provider:
+        prometheus:
+          address: "{{ .Values.analysis.prometheusAddress }}"
+          query: >
+            histogram_quantile(0.95,
+              sum(rate(http_request_duration_seconds_bucket{service="{{ .Values.analysis.prometheusAddress }}"}[5m]))
+              by (le)) * 1000
+
+    - name: circuit-breaker-open-events
+      interval: 60s
+      successCondition: result[0] < number(args.circuit-breaker-open-threshold)
+      failureLimit: 1
+      provider:
+        prometheus:
+          address: "{{ .Values.analysis.prometheusAddress }}"
+          query: >
+            sum(increase(circuit_breaker_opens_total{service="{{ .Values.analysis.prometheusAddress }}"}[5m]))
+
+    - name: dlq-growth-rate
+      interval: 60s
+      successCondition: result[0] < number(args.dlq-growth-threshold)
+      failureLimit: 1
+      provider:
+        prometheus:
+          address: "{{ .Values.analysis.prometheusAddress }}"
+          query: >
+            sum(increase(dead_letter_queue_depth{service="{{ .Values.analysis.prometheusAddress }}"}[5m]))
+
+    - name: connection-pool-saturation
+      interval: 60s
+      successCondition: result[0] < number(args.pool-saturation-threshold)
+      failureLimit: 1
+      provider:
+        prometheus:
+          address: "{{ .Values.analysis.prometheusAddress }}"
+          query: >
+            sum(db_pool_active_connections{service="{{ .Values.analysis.prometheusAddress }}"})
+            /
+            sum(db_pool_max_connections{service="{{ .Values.analysis.prometheusAddress }}"})
+{{- end }}

@@ -1,0 +1,57 @@
+{{- if .Values.worker.rollout.enabled }}
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: dev-squad-worker
+  labels:
+    app: dev-squad-worker
+    component: worker
+spec:
+  replicas: {{ .Values.worker.replicas }}
+  selector:
+    matchLabels:
+      app: dev-squad-worker
+  strategy:
+    canary:
+      steps:
+{{ toYaml .Values.worker.rollout.strategy.steps | indent 8 }}
+      analysis:
+        templates:
+          - templateName: api-slo-analysis
+        startingStep: 1
+  template:
+    metadata:
+      labels:
+        app: dev-squad-worker
+        component: worker
+    spec:
+      serviceAccountName: dev-squad-worker
+      containers:
+        - name: worker
+          image: "{{ .Values.worker.image.repository }}:{{ .Values.worker.image.tag }}"
+          imagePullPolicy: {{ .Values.worker.image.pullPolicy }}
+          env:
+            - name: BACKEND_DEPLOYMENT_PROFILE
+              value: "{{ .Values.profile }}"
+            - name: BACKEND_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.database.secretName }}
+                  key: {{ .Values.database.urlKey }}
+            - name: BACKEND_REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.redis.secretName }}
+                  key: {{ .Values.redis.urlKey }}
+            - name: BACKEND_DATABASE_POOL_SIZE
+              value: "{{ .Values.database.poolSize }}"
+            - name: BACKEND_DATABASE_STATEMENT_TIMEOUT_MS
+              value: "{{ .Values.database.statementTimeoutMs }}"
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+{{- end }}

@@ -150,3 +150,111 @@ pagerDuty:
     sev1: ""
     sev2: ""
     sev3: ""
+
+# Argo Rollouts controller (deployed alongside the chart when enabled).
+argoRollouts:
+  controller:
+    enabled: false
+  notifications:
+    enabled: false
+
+# Worker rollout configuration (mirrors API rollout strategy).
+worker:
+  image:
+    repository: langgraph-dev-squad/worker
+    tag: latest
+    pullPolicy: IfNotPresent
+  replicas: 2
+  rollout:
+    enabled: true
+    strategy:
+      steps:
+        - setWeight: 5
+        - pause:
+            duration: 60
+        - setWeight: 25
+        - pause:
+            duration: 120
+        - setWeight: 50
+        - pause:
+            duration: 180
+        - setWeight: 100
+
+# Frontend blue/green rollout configuration.
+frontend:
+  image:
+    repository: langgraph-dev-squad/frontend
+    tag: latest
+    pullPolicy: IfNotPresent
+  replicas: 2
+  service:
+    port: 3000
+  rollout:
+    enabled: true
+    strategy: blueGreen
+    activeService: dev-squad-frontend-active
+    previewService: dev-squad-frontend-preview
+    autoPromotionEnabled: false
+    postPromotionAnalysis:
+      steps:
+        - pause:
+            duration: 120
+
+# Analysis templates for SLO-driven rollouts.
+analysis:
+  errorRateThreshold: 0.05
+  latencyP95ThresholdMs: 2000
+  circuitBreakerOpenThreshold: 3
+  dlqGrowthThreshold: 10
+  poolSaturationThreshold: 0.85
+  prometheusAddress: "http://prometheus-server.monitoring.svc.cluster.local:9090"
+
+# Feature flag kill switches.
+featureFlags:
+  enabled: false
+  provider: unleash
+  unleash:
+    url: "http://unleash-web:4242/api"
+    appName: "langgraph-dev-squad"
+    environment: "default"
+    apiKeySecretName: dev-squad-feature-flags
+    apiKeySecretKey: unleash-client-token
+  launchDarkly:
+    sdkKeySecretName: dev-squad-feature-flags
+    sdkKeySecretKey: launchdarkly-sdk-key
+  postgresMirror:
+    enabled: true
+    syncIntervalSeconds: 30
+    ttlSeconds: 300
+  mandatoryFlags:
+    llmProviderAnthropic:
+      key: "llm_provider_anthropic"
+      enabled: true
+      owner: "llm-governance"
+      description: "Kill switch for Anthropic provider routing"
+    llmProviderOpenai:
+      key: "llm_provider_openai"
+      enabled: true
+      owner: "llm-governance"
+      description: "Kill switch for OpenAI provider routing"
+    prCreation:
+      key: "pr_creation"
+      enabled: true
+      owner: "runtime-pipeline"
+      description: "Kill switch for PR creation node"
+    graphActivation:
+      key: "graph_activation"
+      enabled: true
+      owner: "runtime-pipeline"
+      description: "Kill switch for graph execution activation"
+    sandboxRuntimeGvisor:
+      key: "sandbox_runtime_gvisor"
+      enabled: true
+      owner: "sandbox-execution"
+      description: "Kill switch for gVisor sandbox runtime"
+    ticketProcessing:
+      key: "ticket_processing"
+      enabled: true
+      owner: "runtime-pipeline"
+      description: "Global kill switch for ticket processing"
+  staleFlagDays: 90

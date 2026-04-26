@@ -1,0 +1,57 @@
+{{- if .Values.rollout.enabled }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: dev-squad-rollout-manager
+rules:
+  - apiGroups:
+      - argoproj.io
+    resources:
+      - rollouts
+      - rollouts/status
+      - rollouts/finalizers
+      - experiments
+      - analysisruns
+      - analysistemplates
+    verbs:
+      - get
+      - list
+      - watch
+      - update
+      - patch
+      - create
+      - delete
+  - apiGroups:
+      - ""
+    resources:
+      - pods
+      - services
+      - configmaps
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - apps
+    resources:
+      - deployments
+      - replicasets
+    verbs:
+      - get
+      - list
+      - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: dev-squad-rollout-manager-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: dev-squad-rollout-manager
+subjects:
+  - kind: ServiceAccount
+    name: dev-squad-backend
+  - kind: ServiceAccount
+    name: dev-squad-worker
+{{- end }}

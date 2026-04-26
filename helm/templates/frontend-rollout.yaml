@@ -1,0 +1,86 @@
+{{- if .Values.frontend.rollout.enabled }}
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: dev-squad-frontend
+  labels:
+    app: dev-squad-frontend
+    component: frontend
+spec:
+  replicas: {{ .Values.frontend.replicas }}
+  selector:
+    matchLabels:
+      app: dev-squad-frontend
+  strategy:
+    blueGreen:
+      activeService: {{ .Values.frontend.rollout.activeService }}
+      previewService: {{ .Values.frontend.rollout.previewService }}
+      autoPromotionEnabled: {{ .Values.frontend.rollout.autoPromotionEnabled }}
+      {{- if .Values.frontend.rollout.postPromotionAnalysis }}
+      postPromotionAnalysis:
+{{ toYaml .Values.frontend.rollout.postPromotionAnalysis | indent 8 }}
+      {{- end }}
+  template:
+    metadata:
+      labels:
+        app: dev-squad-frontend
+        component: frontend
+    spec:
+      containers:
+        - name: frontend
+          image: "{{ .Values.frontend.image.repository }}:{{ .Values.frontend.image.tag }}"
+          imagePullPolicy: {{ .Values.frontend.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.frontend.service.port }}
+          readinessProbe:
+            httpGet:
+              path: /
+              port: {{ .Values.frontend.service.port }}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: {{ .Values.frontend.service.port }}
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.frontend.rollout.activeService }}
+  labels:
+    app: dev-squad-frontend
+    role: active
+spec:
+  selector:
+    app: dev-squad-frontend
+  ports:
+    - port: {{ .Values.frontend.service.port }}
+      targetPort: {{ .Values.frontend.service.port }}
+      protocol: TCP
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.frontend.rollout.previewService }}
+  labels:
+    app: dev-squad-frontend
+    role: preview
+spec:
+  selector:
+    app: dev-squad-frontend
+  ports:
+    - port: {{ .Values.frontend.service.port }}
+      targetPort: {{ .Values.frontend.service.port }}
+      protocol: TCP
+  type: ClusterIP
+{{- end }}
