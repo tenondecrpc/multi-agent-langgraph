@@ -1,0 +1,177 @@
+name: Supply Chain Hardening
+
+on:
+  pull_request:
+    paths:
+      - "backend/**"
+      - "frontend/**"
+      - "backend/Dockerfile"
+      - "frontend/Dockerfile"
+      - "scripts/supply_chain_scan.sh"
+      - ".github/workflows/supply-chain-hardening.yml"
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: gitleaks secret scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ""
+        with:
+          config-path: ""
+
+      - name: trufflehog secret scan
+        uses: trufflesecurity/trufflehog@main
+        with:
+          extra_args: --only-verified
+
+  dockerfile-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install hadolint
+        run: |
+          curl -sSL https://github.com/hadolint/hadolint/releases/download/v2.12.0/hadolint-Linux-x86_64 -o /usr/local/bin/hadolint
+          chmod +x /usr/local/bin/hadolint
+
+      - name: Lint backend Dockerfile
+        run: hadolint backend/Dockerfile --no-fail
+
+      - name: Lint frontend Dockerfile
+        run: hadolint frontend/Dockerfile --no-fail
+
+      - name: Check no latest tag in backend Dockerfile
+        run: |
+          if grep -qE 'FROM.*:latest' backend/Dockerfile; then
+            echo "FAIL: backend Dockerfile uses :latest tag"
+            exit 1
+          fi
+          echo "PASS: backend Dockerfile does not use :latest"
+
+      - name: Check no latest tag in frontend Dockerfile
+        run: |
+          if grep -qE 'FROM.*:latest' frontend/Dockerfile; then
+            echo "FAIL: frontend Dockerfile uses :latest tag"
+            exit 1
+          fi
+          echo "PASS: frontend Dockerfile does not use :latest"
+
+  sbom-and-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: backend/.python-version
+
+      - name: Sync backend dependencies
+        run: uv sync --project backend --dev
+
+      - name: Generate Python SBOM with syft
+        uses: anchore/sbom-action@v0
+        with:
+          path: backend
+          format: spdx-json
+          output-file: backend-sbom.spdx.json
+
+      - name: Upload backend SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-sbom
+          path: backend-sbom.spdx.json
+          retention-days: 30
+
+      - name: Run Trivy vulnerability scanner on backend
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: fs
+          scan-ref: backend
+          format: sarif
+          output: trivy-backend-results.sarif
+          severity: CRITICAL,HIGH
+
+      - name: Upload Trivy scan results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: trivy-backend-results.sarif
+
+      - name: Run OSV-Scanner on backend
+        uses: google/osv-scanner-action@v2
+        with:
+          scan-args: |-
+            --lockfile=backend/uv.lock
+            --format=sarif
+            --output=osv-backend-results.sarif
+
+      - name: Upload OSV-Scanner results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: osv-scanner-backend-results
+          path: osv-backend-results.sarif
+          retention-days: 30
+
+  frontend-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: frontend/.nvmrc
+
+      - name: Install frontend dependencies
+        run: npm ci --prefix frontend
+
+      - name: Generate frontend SBOM with syft
+        uses: anchore/sbom-action@v0
+        with:
+          path: frontend
+          format: spdx-json
+          output-file: frontend-sbom.spdx.json
+
+      - name: Upload frontend SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-sbom
+          path: frontend-sbom.spdx.json
+          retention-days: 30
+
+      - name: Run Trivy vulnerability scanner on frontend
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: fs
+          scan-ref: frontend
+          format: sarif
+          output: trivy-frontend-results.sarif
+          severity: CRITICAL,HIGH
+
+      - name: Upload Trivy scan results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: trivy-frontend-results.sarif

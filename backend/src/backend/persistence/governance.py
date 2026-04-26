@@ -49,6 +49,13 @@ DEPLOYMENT_PROFILE_ENV_KEY = "BACKEND_DEPLOYMENT_PROFILE"
 MODEL_CATALOG_BUNDLE_PATH_ENV_KEY = "BACKEND_MODEL_CATALOG_BUNDLE_PATH"
 PROVIDER_FAILURE_THRESHOLD_ENV_KEY = "BACKEND_PROVIDER_FAILURE_THRESHOLD"
 PROVIDER_RECOVERY_PROBE_LIMIT_ENV_KEY = "BACKEND_PROVIDER_RECOVERY_PROBE_LIMIT"
+OPENCODE_GO_ENDPOINT_ENV_KEY = "BACKEND_PROVIDER_OPENCODE_GO_ENDPOINT"
+VENDOR_LLM_API_KEY_ENV_KEYS = (
+    "BACKEND_OPENAI_API_KEY",
+    "BACKEND_ANTHROPIC_API_KEY",
+    "OPENAI_API_KEY",
+    "ANTHROPIC_API_KEY",
+)
 _RESERVATION_SCRIPT = """
 local ticket = redis.call('GET', KEYS[1])
 local daily = redis.call('GET', KEYS[2])
@@ -165,6 +172,18 @@ class ModelCatalogSettings(BaseModel):
                 f"{DEPLOYMENT_PROFILE_ENV_KEY} must be 'connected' or 'air_gapped', got "
                 f"'{deployment_profile}'"
             )
+        if deployment_profile == "air_gapped":
+            for env_key in VENDOR_LLM_API_KEY_ENV_KEYS:
+                if os.getenv(env_key):
+                    raise ValueError(
+                        f"{env_key} is connected-only and cannot be set when "
+                        f"{DEPLOYMENT_PROFILE_ENV_KEY}=air_gapped"
+                    )
+            if not os.getenv(OPENCODE_GO_ENDPOINT_ENV_KEY):
+                raise ValueError(
+                    f"{OPENCODE_GO_ENDPOINT_ENV_KEY} is required when "
+                    f"{DEPLOYMENT_PROFILE_ENV_KEY}=air_gapped"
+                )
         return cls(
             mode=mode,  # type: ignore[arg-type]
             deployment_profile=deployment_profile,  # type: ignore[arg-type]

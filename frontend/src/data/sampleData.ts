@@ -54,7 +54,23 @@ export type ApiDeprecationTimeline = {
   replacementRoute: string;
 };
 
+export type DeploymentProfileCard = {
+  profile: "connected" | "air_gapped";
+  provider: string;
+  telemetry: string;
+  statusSync: string;
+  runbook: string;
+};
+
 export const roles: OperatorRole[] = ["viewer", "operator", "admin", "super-admin"];
+
+export const deploymentProfile: DeploymentProfileCard = {
+  profile: "air_gapped",
+  provider: "OpenCode Go",
+  telemetry: "External telemetry disabled",
+  statusSync: "Internal status only",
+  runbook: "docs/runbooks/air-gapped-deployment.md",
+};
 
 export const initialRuns: RunCard[] = [
   {

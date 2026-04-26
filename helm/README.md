@@ -9,6 +9,19 @@ This directory now contains the baseline chart for the persistence-backed runtim
 - Air-gapped profile:
   - `helm template dev-squad ./helm -f ./helm/values.yaml -f ./helm/values-air-gapped.yaml`
 
+## Air-Gapped Profile
+
+`values-air-gapped.yaml` sets `profile: air_gapped`, disables LangSmith and
+external statuspage sync, rejects vendor LLM API key values at render time, and
+passes `BACKEND_PROVIDER_OPENCODE_GO_ENDPOINT` to the backend. The NetworkPolicy
+allows only listed internal services such as OpenCode Go and embedding pods when
+`networkPolicy.denyExternalLlmEgress` is true.
+
+Vault must be seeded before backend pods start. Use
+`scripts/bootstrap_air_gapped_vault.sh` from inside the disconnected environment
+and revoke the bootstrap token after the maintenance window. Vault dev mode is
+not valid for this profile.
+
 ## Public Status Sync
 
 The connected profile enables `statusPageSync.enabled` by default. The CronJob reads

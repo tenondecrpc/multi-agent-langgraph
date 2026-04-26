@@ -4,6 +4,7 @@ import {
   activeGraphCandidate,
   agentCards,
   apiDeprecations,
+  deploymentProfile,
   initialRuns,
   invalidGraphCandidate,
   persistenceStatus,
@@ -417,6 +418,28 @@ export default function App() {
                   ) : null}
                 </div>
               ) : null}
+              <section
+                aria-label="Deployment profile"
+                className="profile-banner"
+                role="status"
+              >
+                <div>
+                  <span className="profile-label">Deployment profile</span>
+                  <strong>{deploymentProfile.profile.replace("_", " ")}</strong>
+                </div>
+                <div>
+                  <span className="profile-label">LLM provider</span>
+                  <strong>{deploymentProfile.provider}</strong>
+                </div>
+                <div>
+                  <span className="profile-label">Telemetry</span>
+                  <strong>{deploymentProfile.telemetry}</strong>
+                </div>
+                <div>
+                  <span className="profile-label">Status sync</span>
+                  <strong>{deploymentProfile.statusSync}</strong>
+                </div>
+              </section>
               <section className="panel">
                 <div className="panel-header">
                   <h2>{t(locale, "admin")}</h2>

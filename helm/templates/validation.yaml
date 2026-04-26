@@ -1,0 +1,20 @@
+{{- if eq .Values.profile "air_gapped" }}
+{{- if .Values.langsmith.enabled }}
+{{- fail "air_gapped profile requires langsmith.enabled=false" }}
+{{- end }}
+{{- if .Values.statusPageSync.enabled }}
+{{- fail "air_gapped profile requires statusPageSync.enabled=false" }}
+{{- end }}
+{{- if .Values.vault.devMode }}
+{{- fail "air_gapped profile cannot run Vault dev mode" }}
+{{- end }}
+{{- if or .Values.llm.vendorApiKeys.openai .Values.llm.vendorApiKeys.anthropic }}
+{{- fail "air_gapped profile rejects vendor LLM API keys" }}
+{{- end }}
+{{- if ne .Values.llm.primaryProvider "opencode-go" }}
+{{- fail "air_gapped profile requires llm.primaryProvider=opencode-go" }}
+{{- end }}
+{{- if not .Values.llm.opencodeGo.endpoint }}
+{{- fail "air_gapped profile requires llm.opencodeGo.endpoint" }}
+{{- end }}
+{{- end }}

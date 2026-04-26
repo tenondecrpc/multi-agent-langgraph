@@ -4,16 +4,16 @@
 
 ## 2. CI Build Hardening
 
-- [ ] 2.1 Add syft SBOM generation and publish as artifact.
+- [x] 2.1 Add syft SBOM generation and publish as artifact.
 - [ ] 2.2 Add cosign keyless signing bound to the CI OIDC identity.
 - [ ] 2.3 Add SLSA Level 3 provenance generation and attach to image.
-- [ ] 2.4 Add Trivy, Grype, OSV-Scanner; block on critical and high.
+- [x] 2.4 Add Trivy, Grype, OSV-Scanner; block on critical and high.
 
 ## 3. PR Checks
 
 - [ ] 3.1 License allowlist enforcement via FOSSA or ScanCode.
-- [ ] 3.2 Secret scanning via gitleaks and trufflehog.
-- [ ] 3.3 Dockerfile lint: digest-pinned base images, no `latest` tag.
+- [x] 3.2 Secret scanning via gitleaks and trufflehog.
+- [x] 3.3 Dockerfile lint: digest-pinned base images, no `latest` tag.
 
 ## 4. Admission Controller
 

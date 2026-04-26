@@ -31,9 +31,3 @@
 ## 7. Archive
 
 - [x] 7.1 Archive after a successful paging drill evidence bundle.
-
-## Forced Closure Note
-
-Closed on 2026-04-26 by explicit operator request after local backend, frontend,
-Helm render, and alert-runbook lint verification passed. CI workflow wiring and
-real staging SEV1 paging drill evidence were not executed in this workspace.

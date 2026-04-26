@@ -10,13 +10,29 @@ spec:
     - Egress
   egress:
     {{- if .Values.networkPolicy.denyExternalLlmEgress }}
+    {{- range .Values.networkPolicy.internalServices }}
     - to:
         - podSelector:
             matchLabels:
-{{ toYaml .Values.networkPolicy.internalEmbedding.podSelector | indent 14 }}
+{{ toYaml .podSelector | indent 14 }}
       ports:
         - protocol: TCP
-          port: {{ .Values.networkPolicy.internalEmbedding.port }}
+          port: {{ .port }}
+    {{- end }}
+    {{- if .Values.networkPolicy.internalDns.enabled }}
+    - to:
+        - namespaceSelector:
+            matchLabels:
+{{ toYaml .Values.networkPolicy.internalDns.namespaceSelector | indent 14 }}
+          podSelector:
+            matchLabels:
+{{ toYaml .Values.networkPolicy.internalDns.podSelector | indent 14 }}
+      ports:
+        {{- range .Values.networkPolicy.internalDns.ports }}
+        - protocol: {{ .protocol }}
+          port: {{ .port }}
+        {{- end }}
+    {{- end }}
     {{- else }}
     - to:
         {{- range .Values.networkPolicy.allowedCidrs }}

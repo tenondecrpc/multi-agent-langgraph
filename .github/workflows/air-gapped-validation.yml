@@ -1,0 +1,146 @@
+name: Air-Gapped Deployment Validation
+
+on:
+  pull_request:
+    paths:
+      - "helm/**"
+      - "backend/src/**"
+      - "backend/tests/**"
+      - "scripts/bootstrap_air_gapped_vault.sh"
+      - ".github/workflows/air-gapped-validation.yml"
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  helm-dry-run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.16.0
+
+      - name: Helm lint
+        run: helm lint helm/
+
+      - name: Helm template - connected profile
+        run: helm template dev-squad helm/ --values helm/values.yaml > /dev/null
+
+      - name: Helm template - air-gapped profile
+        run: helm template dev-squad helm/ --values helm/values-air-gapped.yaml > /dev/null
+
+      - name: Helm template - air-gapped rejects vendor keys
+        id: reject-vendor-keys
+        run: |
+          set +e
+          helm template dev-squad helm/ --values helm/values-air-gapped.yaml \
+            --set llm.vendorApiKeys.openai=sk-test 2>/tmp/helm-reject.txt
+          EXIT_CODE=$?
+          set -e
+          if [ "$EXIT_CODE" -eq 0 ]; then
+            echo "FAIL: air-gapped profile allowed vendor API keys"
+            exit 1
+          fi
+          if grep -q "rejects vendor LLM API keys" /tmp/helm-reject.txt; then
+            echo "PASS: air-gapped profile correctly rejected vendor API keys"
+          else
+            echo "FAIL: air-gapped profile rejection message not found"
+            cat /tmp/helm-reject.txt
+            exit 1
+          fi
+
+      - name: Helm template - air-gapped rejects langsmith
+        run: |
+          set +e
+          helm template dev-squad helm/ --values helm/values-air-gapped.yaml \
+            --set langsmith.enabled=true 2>/tmp/helm-reject-ls.txt
+          EXIT_CODE=$?
+          set -e
+          if [ "$EXIT_CODE" -eq 0 ]; then
+            echo "FAIL: air-gapped profile allowed langsmith"
+            exit 1
+          fi
+          grep -q "langsmith.enabled=false" /tmp/helm-reject-ls.txt || exit 1
+          echo "PASS: air-gapped profile correctly rejected langsmith"
+
+      - name: Helm template - air-gapped rejects dev mode
+        run: |
+          set +e
+          helm template dev-squad helm/ --values helm/values-air-gapped.yaml \
+            --set vault.devMode=true 2>/tmp/helm-reject-vd.txt
+          EXIT_CODE=$?
+          set -e
+          if [ "$EXIT_CODE" -eq 0 ]; then
+            echo "FAIL: air-gapped profile allowed Vault dev mode"
+            exit 1
+          fi
+          grep -q "Vault dev mode" /tmp/helm-reject-vd.txt || exit 1
+          echo "PASS: air-gapped profile correctly rejected Vault dev mode"
+
+      - name: Helm template - air-gapped requires opencode-go
+        run: |
+          set +e
+          helm template dev-squad helm/ --values helm/values-air-gapped.yaml \
+            --set llm.primaryProvider=openai 2>/tmp/helm-reject-op.txt
+          EXIT_CODE=$?
+          set -e
+          if [ "$EXIT_CODE" -eq 0 ]; then
+            echo "FAIL: air-gapped profile allowed non-opencode-go provider"
+            exit 1
+          fi
+          grep -q "primaryProvider=opencode-go" /tmp/helm-reject-op.txt || exit 1
+          echo "PASS: air-gapped profile correctly rejected non-opencode-go provider"
+
+      - name: Upload Helm validation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: air-gapped-helm-validation
+          path: |
+            /tmp/helm-reject.txt
+            /tmp/helm-reject-ls.txt
+            /tmp/helm-reject-vd.txt
+            /tmp/helm-reject-op.txt
+          if-no-files-found: ignore
+
+  air-gapped-smoke:
+    needs: helm-dry-run
+    runs-on: ubuntu-latest
+    env:
+      AIR_GAPPED: "true"
+      LLM_PRIMARY_PROVIDER: opencode-go
+      OPENCODE_GO_ENDPOINT: "http://localhost:8080/v1"
+      OPENCODE_GO_DEFAULT_MODEL: opencode-go/kimi-k2.5
+      VAULT_DEV_MODE: "false"
+      LANGSMITH_ENABLED: "false"
+      VENDOR_OPENAI_KEY: "unreachable-by-policy"
+      VENDOR_ANTHROPIC_KEY: "unreachable-by-policy"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: backend/.python-version
+
+      - name: Sync backend dependencies
+        run: uv sync --project backend --dev
+
+      - name: Run air-gapped backend tests
+        run: >
+          uv run --project backend pytest backend/tests/ -v
+          -k "air_gapped or air_gapped_ or governance" --tb=short
+
+      - name: Validate vault bootstrap script is syntactically valid
+        run: sh -n scripts/bootstrap_air_gapped_vault.sh

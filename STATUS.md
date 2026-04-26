@@ -33,7 +33,7 @@ Archived and treated as completed foundation work:
 
 Active changes still open:
 
-- `air-gapped-deployment-profile` - not implemented
+- `air-gapped-deployment-profile` - partially implemented; CI wiring, enforcement soak, and real install rehearsal remain open
 - `billing-rate-card-reconciliation` - not implemented
 - `chaos-fuzz-and-prompt-regression-testing-program` - not implemented
 - `credential-rotation-sla-and-break-glass` - not implemented
@@ -225,16 +225,21 @@ What exists now:
 
 - Helm chart files under `helm/`
 - connected, `air_gapped`, staging, and production values files
+- air-gapped Helm validation rejects vendor LLM keys, external statuspage sync, LangSmith tracing, and Vault dev mode
+- air-gapped NetworkPolicy allows only internal OpenCode Go, internal embedding, and cluster DNS egress from backend pods
+- backend pod templates receive `BACKEND_DEPLOYMENT_PROFILE` and the Helm-configured OpenCode Go endpoint
 - External Secrets Operator templates with LangSmith API key sync from Vault
 - NetworkPolicy template
 - baseline Rollout template and canary step values
 - local development manifests under `k8s/`
 - LangSmith tracing toggle (`langsmith.enabled`) with per-environment project separation; Vault + ESO is the production path, direct `kubectl create secret` is the local path
 - vendor telemetry suppression (`DO_NOT_TRACK=1`, `LANGCHAIN_TRACING_V2=false`) when LangSmith is disabled, preventing PostHog network flush errors in air-gapped deployments
+- offline Vault bootstrap script and operator custody guidance for the air-gapped profile
 
 Important limitation:
 
 - the active `air-gapped-deployment-profile`, `progressive-delivery-and-feature-flag-kill-switches`, and `supply-chain-and-admission-controller` changes are still open, so the chart is not yet the fully validated production delivery package described in `docs/PLAN.md`.
+- the air-gapped profile still lacks CI workflow wiring, enforcement soak, and real disconnected install rehearsal evidence.
 
 ## Active work with implementation present
 
@@ -327,12 +332,6 @@ Completed so far:
 - local alert-runbook lint script and tests
 - backend contract tests and frontend tests for the status-page surface
 
-Forced closure note:
-
-- archived by explicit operator request after local verification passed
-- real staging SEV1 paging drill evidence was not produced in this workspace
-- CI workflow wiring for the runbook lint was not added because `.github/workflows` is a protected path under repository guardrails
-
 ## Remaining work required for full production readiness
 
 The following items block a true production-ready deployment and map to active OpenSpec changes or unresolved plan commitments.
@@ -340,9 +339,9 @@ The following items block a true production-ready deployment and map to active O
 ### Tier 1 production blockers
 
 - Complete `air-gapped-deployment-profile`
-  - enforce no external LLM or telemetry egress
-  - validate self-hosted provider routing and deployment constraints
-  - add the canonical runbook and install rehearsal evidence
+  - CI workflow wiring for air-gapped smoke validation (`.github/workflows/air-gapped-validation.yml`) is done; Helm dry-run for both profiles and governance rejection tests are automated
+  - enforcement soak (task 5.2) and one real disconnected install rehearsal (task 8.1) are still required
+  - current implementation covers Helm validation, internal-only NetworkPolicy egress, self-hosted OpenCode Go routing config, Vault bootstrap documentation, the admin profile banner, and CI acceptance wiring
 
 - Complete `jira-webhook-replay-and-rate-limit-hardening`
   - add replay hardening beyond the current `(source, delivery_id)` idempotency foundation
@@ -352,7 +351,8 @@ The following items block a true production-ready deployment and map to active O
   - operationalize rotation schedules, alerts, dual-control break-glass, and KEK rotation drills
 
 - Complete `supply-chain-and-admission-controller`
-  - add SBOM, signing, provenance, vulnerability/license scans, and cluster admission enforcement
+  - CI workflows for secret scanning (gitleaks, trufflehog), Dockerfile lint, SBOM generation (syft), and vulnerability scanning (Trivy, OSV-Scanner) are wired
+  - cluster-side Kyverno admission policies, `admission_exceptions` table, and air-gapped bundle verification are still required
 
 - Complete `progressive-delivery-and-feature-flag-kill-switches`
   - wire Argo Rollouts analysis, automated rollback, OpenFeature integration, and kill-switch drills
@@ -400,11 +400,12 @@ At a macro level:
 Validation run during this status update (2026-04-26):
 
 - `uv run --project backend ruff check backend/src backend/tests scripts/lint_alert_runbooks.py` - passed
-- `uv run --project backend pytest` - passed, 138 passed, 1 skipped, 0 failed
-- `npm run --prefix frontend test -- --run` - passed, 6 passed
+- `uv run --project backend pytest` - passed, 140 passed, 1 skipped, 0 failed
+- `npm run --prefix frontend test -- --run` - passed, 7 passed
 - `npm run --prefix frontend build` - passed
 - `helm template dev-squad ./helm -f ./helm/values.yaml` - passed
 - `helm template dev-squad ./helm -f ./helm/values.yaml -f ./helm/values-air-gapped.yaml` - passed
+- `helm template dev-squad ./helm -f ./helm/values.yaml -f ./helm/values-air-gapped.yaml --set llm.vendorApiKeys.anthropic=sk-test` - failed as expected with `air_gapped profile rejects vendor LLM API keys`
 - `helm template dev-squad ./helm -f ./helm/values.yaml -f ./helm/values-staging.yaml` - passed
 - `uv run --project backend python scripts/lint_alert_runbooks.py` - passed with orphan-runbook warnings only
 - focused status-page contract check - included in the backend and frontend runs above

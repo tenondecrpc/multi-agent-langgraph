@@ -25,6 +25,10 @@ spec:
           ports:
             - containerPort: {{ .Values.service.port }}
           env:
+            - name: BACKEND_DEPLOYMENT_PROFILE
+              value: "{{ .Values.profile }}"
+            - name: BACKEND_PROVIDER_OPENCODE_GO_ENDPOINT
+              value: "{{ .Values.llm.opencodeGo.endpoint }}"
             - name: BACKEND_DATABASE_URL
               valueFrom:
                 secretKeyRef:

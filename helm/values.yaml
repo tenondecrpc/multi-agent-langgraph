@@ -1,5 +1,14 @@
 profile: connected
 
+llm:
+  primaryProvider: opencode-go
+  opencodeGo:
+    endpoint: "http://dev-squad-opencode-go:8080/v1"
+    defaultModel: "opencode-go/kimi-k2.5"
+  vendorApiKeys:
+    openai: ""
+    anthropic: ""
+
 image:
   repository: langgraph-dev-squad/backend
   tag: latest
@@ -37,10 +46,37 @@ networkPolicy:
   denyExternalLlmEgress: false
   allowedCidrs:
     - 0.0.0.0/0
+  internalServices:
+    - name: opencode-go
+      podSelector:
+        app: dev-squad-opencode-go
+      port: 8080
+    - name: embedding
+      podSelector:
+        app: dev-squad-embedding
+      port: 8080
   internalEmbedding:
     podSelector:
       app: dev-squad-embedding
     port: 8080
+  internalDns:
+    enabled: true
+    namespaceSelector:
+      kubernetes.io/metadata.name: kube-system
+    podSelector:
+      k8s-app: kube-dns
+    ports:
+      - protocol: UDP
+        port: 53
+      - protocol: TCP
+        port: 53
+
+vault:
+  devMode: false
+  bootstrap:
+    enabled: false
+    authMount: kubernetes
+    policyName: dev-squad-backend
 
 internalRag:
   enabled: "false"

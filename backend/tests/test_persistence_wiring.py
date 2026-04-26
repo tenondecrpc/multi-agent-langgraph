@@ -3,6 +3,8 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
+import pytest
+
 from backend.persistence import (
     PostgresBudgetLedger,
     PostgresControlPlaneStore,
@@ -132,6 +134,15 @@ def test_persistence_factory_forces_production_adapters_when_infrastructure_is_c
     assert isinstance(adapters.model_catalog, PostgresModelCatalog)
     assert isinstance(adapters.provider_health_store, RedisSharedProviderHealthStore)
     assert isinstance(adapters.webhook_guard, PostgresRedisWebhookGuard)
+
+
+def test_air_gapped_profile_disables_dev_mode_persistence_fallback(monkeypatch) -> None:
+    monkeypatch.setenv("BACKEND_DEPLOYMENT_PROFILE", "air_gapped")
+    monkeypatch.delenv("BACKEND_DATABASE_URL", raising=False)
+    monkeypatch.delenv("BACKEND_REDIS_URL", raising=False)
+
+    with pytest.raises(RuntimeError, match="in-memory dev fallback is disabled"):
+        build_persistence_adapters()
 
 
 def _call_name(node: ast.expr) -> str:

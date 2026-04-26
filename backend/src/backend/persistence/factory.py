@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 
 from backend.governance.catalog import ModelCatalogEntry, RoleTokenPolicy
@@ -24,6 +25,7 @@ from .control_plane import (
 from .db import DatabaseRuntime, build_database_runtime
 from .encryption import EnvelopeCipher
 from .governance import (
+    DEPLOYMENT_PROFILE_ENV_KEY,
     BudgetLedgerSettings,
     MeteringLedgerSettings,
     ModelCatalogSettings,
@@ -119,6 +121,19 @@ def build_persistence_adapters() -> PersistenceAdapters:
         encryption_ready=encryption.configured,
     )
     telemetry = bootstrap_telemetry()
+    if os.getenv(DEPLOYMENT_PROFILE_ENV_KEY) == "air_gapped":
+        if not database.configured:
+            raise RuntimeError(
+                "air_gapped deployment requires PostgreSQL; in-memory dev fallback is disabled"
+            )
+        if not redis.configured:
+            raise RuntimeError(
+                "air_gapped deployment requires Redis; in-memory dev fallback is disabled"
+            )
+        if not encryption.configured:
+            raise RuntimeError(
+                "air_gapped deployment requires Vault-backed encryption; dev fallback is disabled"
+            )
     if not database.configured:
         return build_in_memory_persistence()
 
@@ -257,8 +272,8 @@ def _default_model_catalog_entries() -> list[ModelCatalogEntry]:
             supports_streaming=False,
         ),
         ModelCatalogEntry(
-            model_id="airgap-llama",
-            provider_id="vllm",
+            model_id="opencode-go/kimi-k2.5",
+            provider_id="opencode-go",
             deployment_profile="air_gapped",
             max_input_tokens=16_000,
             max_output_tokens=4_000,
@@ -266,7 +281,18 @@ def _default_model_catalog_entries() -> list[ModelCatalogEntry]:
             supports_tools=True,
             supports_json_mode=True,
             supports_streaming=False,
-            allowed_fallback_targets=["airgap-llama"],
+            allowed_fallback_targets=["opencode-go/minimax-m2.7"],
+        ),
+        ModelCatalogEntry(
+            model_id="opencode-go/minimax-m2.7",
+            provider_id="opencode-go",
+            deployment_profile="air_gapped",
+            max_input_tokens=16_000,
+            max_output_tokens=4_000,
+            default_price_card_id="card-airgap-v1",
+            supports_tools=True,
+            supports_json_mode=True,
+            supports_streaming=False,
         ),
     ]
 

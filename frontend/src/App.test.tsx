@@ -91,6 +91,21 @@ describe("App", () => {
     expect(screen.getAllByText("Healthy")).toHaveLength(3);
   });
 
+  it("shows the deployment profile banner in the admin panel", () => {
+    render(<App />);
+
+    fireEvent.change(screen.getByLabelText("Role"), {
+      target: { value: "admin" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Admin" }));
+
+    expect(screen.getByRole("status", { name: "Deployment profile" })).toBeInTheDocument();
+    expect(screen.getByText("air gapped")).toBeInTheDocument();
+    expect(screen.getByText("OpenCode Go")).toBeInTheDocument();
+    expect(screen.getByText("External telemetry disabled")).toBeInTheDocument();
+    expect(screen.getByText("Internal status only")).toBeInTheDocument();
+  });
+
   it("shows API deprecation timeline in the admin panel", () => {
     render(<App />);
 

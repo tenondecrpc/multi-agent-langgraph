@@ -53,8 +53,8 @@ def build_catalog() -> InMemoryModelCatalog:
                 supports_streaming=False,
             ),
             ModelCatalogEntry(
-                model_id="airgap-llama",
-                provider_id="vllm",
+                model_id="opencode-go/kimi-k2.5",
+                provider_id="opencode-go",
                 deployment_profile="air_gapped",
                 max_input_tokens=16_000,
                 max_output_tokens=4_000,
@@ -62,7 +62,18 @@ def build_catalog() -> InMemoryModelCatalog:
                 supports_tools=True,
                 supports_json_mode=True,
                 supports_streaming=False,
-                allowed_fallback_targets=["airgap-llama"],
+                allowed_fallback_targets=["opencode-go/minimax-m2.7"],
+            ),
+            ModelCatalogEntry(
+                model_id="opencode-go/minimax-m2.7",
+                provider_id="opencode-go",
+                deployment_profile="air_gapped",
+                max_input_tokens=16_000,
+                max_output_tokens=4_000,
+                default_price_card_id="card-airgap-v1",
+                supports_tools=True,
+                supports_json_mode=True,
+                supports_streaming=False,
             ),
         ],
         role_token_policies=[
@@ -208,6 +219,46 @@ def test_model_catalog_token_caps_and_air_gapped_validation() -> None:
 
     with pytest.raises(ValueError):
         catalog.resolve_model("gpt-4.1", "air_gapped")
+
+
+def test_air_gapped_provider_router_uses_only_opencode_go_models() -> None:
+    catalog = build_catalog()
+    health_store = InMemoryProviderHealthStore()
+    router = RuleBasedProviderRouter(
+        model_catalog=catalog,
+        health_store=health_store,
+        role_assignments=[
+            RoleModelAssignment(
+                role="coder",
+                primary_model_id="opencode-go/kimi-k2.5",
+                fallback_model_id="opencode-go/minimax-m2.7",
+            )
+        ],
+    )
+    context = build_budget_context()
+
+    primary = router.select_model(
+        role="coder",
+        run_id=context.run_id,
+        tenant_id=context.tenant_id,
+        budget_context=context,
+        deployment_profile="air_gapped",
+    )
+    health_store.record_failure("opencode-go")
+    health_store.record_failure("opencode-go")
+
+    with pytest.raises(Exception) as exc_info:
+        router.select_model(
+            role="coder",
+            run_id=context.run_id,
+            tenant_id=context.tenant_id,
+            budget_context=context,
+            deployment_profile="air_gapped",
+        )
+
+    assert primary.provider_id == "opencode-go"
+    assert primary.model_id == "opencode-go/kimi-k2.5"
+    assert str(exc_info.value) == EscalationReason.ALL_PROVIDERS_UNAVAILABLE.value
 
 
 def test_budget_reservations_are_atomic_under_parallel_load() -> None:
