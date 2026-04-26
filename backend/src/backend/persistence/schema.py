@@ -920,3 +920,105 @@ reconciliation_reports = Table(
         server_default=text("now()"),
     ),
 )
+
+tenant_delete_events = Table(
+    "tenant_delete_events",
+    metadata,
+    Column("event_id", String(64), primary_key=True),
+    Column("tenant_id", String(128), nullable=False),
+    Column("requested_by", String(255), nullable=False),
+    Column("reason", Text, nullable=False),
+    Column("approved_by_first", String(255), nullable=True),
+    Column("approved_by_second", String(255), nullable=True),
+    Column("approved_at", DateTime(timezone=True), nullable=True),
+    Column("status", String(32), nullable=False, server_default=text("'pending'")),
+    Column("deletion_counts", JSONB, nullable=False, server_default=text("'{}'::jsonb")),
+    Column("completed_at", DateTime(timezone=True), nullable=True),
+    Column(
+        "created_at",
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("now()"),
+    ),
+)
+
+dpa_versions = Table(
+    "dpa_versions",
+    metadata,
+    Column("version", String(32), primary_key=True),
+    Column("published_at", DateTime(timezone=True), nullable=False),
+    Column("content_hash", String(64), nullable=False),
+    Column("summary", Text, nullable=False),
+    Column("published_by", String(255), nullable=False),
+    Column("grace_period_days", Integer, nullable=False, server_default=text("30")),
+    Column(
+        "created_at",
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("now()"),
+    ),
+)
+
+dpa_acknowledgements = Table(
+    "dpa_acknowledgements",
+    metadata,
+    Column("ack_id", String(64), primary_key=True),
+    Column("tenant_id", String(128), nullable=False),
+    Column("dpa_version", String(32), nullable=False),
+    Column("acknowledged_by", String(255), nullable=False),
+    Column(
+        "acknowledged_at",
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("now()"),
+    ),
+    UniqueConstraint("tenant_id", "dpa_version", name="uq_dpa_ack_tenant_version"),
+)
+
+retention_policies = Table(
+    "retention_policies",
+    metadata,
+    Column("policy_id", String(64), primary_key=True),
+    Column("surface", String(64), nullable=False),
+    Column("tenant_id", String(128), nullable=False),
+    Column("retention_days", Integer, nullable=False),
+    Column("enabled", Boolean, nullable=False, server_default=text("true")),
+    Column(
+        "created_at",
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("now()"),
+    ),
+    Column(
+        "updated_at",
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("now()"),
+    ),
+    UniqueConstraint("surface", "tenant_id", name="uq_retention_surface_tenant"),
+)
+
+retention_runs = Table(
+    "retention_runs",
+    metadata,
+    Column("run_id", String(64), primary_key=True),
+    Column("surface", String(64), nullable=False),
+    Column("tenant_id", String(128), nullable=False),
+    Column("rows_affected", Integer, nullable=False, server_default=text("0")),
+    Column("partitions_dropped", Integer, nullable=False, server_default=text("0")),
+    Column("duration_ms", Integer, nullable=False, server_default=text("0")),
+    Column("status", String(32), nullable=False, server_default=text("'success'")),
+    Column("error_message", Text, nullable=True),
+    Column("mode", String(32), nullable=False, server_default=text("'enforce'")),
+    Column(
+        "started_at",
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("now()"),
+    ),
+    Column(
+        "completed_at",
+        DateTime(timezone=True),
+        nullable=True,
+    ),
+)

@@ -37,7 +37,6 @@ Archived and treated as completed foundation work:
 Active changes still open:
 
 - `chaos-fuzz-and-prompt-regression-testing-program` - not implemented
-- `data-retention-deletion-and-dpa-compliance` - not implemented
 - `progressive-delivery-and-feature-flag-kill-switches` - not implemented as a full change
 
 ## Implemented foundations
@@ -351,6 +350,33 @@ Important limitation:
 - quarterly drill Job and `rotate_kek.sh` script are deferred to operational hardening
 - blocking middleware on ticket acceptance is API-level only; not yet wired into the webhook path
 
+### 14. Data retention, deletion, and DPA compliance
+
+Status: Implemented
+
+Covered OpenSpec change:
+
+- `2026-04-26-data-retention-deletion-and-dpa-compliance`
+
+What exists now:
+
+- `tenant_delete_events` table with dual-control approval workflow and cascade deletion tracking (Alembic migration `20260426_0015`)
+- `dpa_versions` and `dpa_acknowledgements` tables for DPA publication and tenant acknowledgement
+- `retention_policies` and `retention_runs` tables for configurable retention and audit trail
+- Retention job executor with dry-run/enforce modes for metering, DLQ, and audit surfaces
+- Tenant delete cascade across 8 tables (budget, metering, DLQ, runs) with per-table counts
+- DPA gate middleware blocking webhook acceptance until current DPA version is acknowledged
+- 30-day grace period for DPA version changes
+- Admin API at `/api/v1/admin/data-retention/*` for policies, retention runs, tenant delete, and DPA management
+- Prometheus metrics: `devsquad_retention_runs_total`, `devsquad_retention_rows_deleted`, `devsquad_retention_run_failures_total`, `devsquad_tenant_deletions_total`
+- Contract tests under `backend/tests/test_data_retention_contracts.py` - 13 tests passing
+
+Important limitation:
+
+- metering partitioning by month is deferred (row-level delete used instead)
+- checkpoint and memory TTL eviction jobs are deferred
+- quarterly GDPR erasure drill and RTO evidence bundle are deferred
+
 ## Active work with implementation present
 
 ### GitHub App and PAT onboarding mechanics
@@ -482,7 +508,7 @@ If the question is "can this system be declared fully production-operational for
 
 At a macro level:
 
-- completed foundations: runtime, platform contracts, security contracts, LLM governance, durable persistence, control plane, UI shell, operations policy primitives, GitHub App and PAT onboarding, API versioning, OpenAPI diff gate, optional internal RAG, public status/runbook baseline, billing rate-card reconciliation, webhook replay/rate-limit hardening, and credential rotation SLA with break-glass
+- completed foundations: runtime, platform contracts, security contracts, LLM governance, durable persistence, control plane, UI shell, operations policy primitives, GitHub App and PAT onboarding, API versioning, OpenAPI diff gate, optional internal RAG, public status/runbook baseline, billing rate-card reconciliation, webhook replay/rate-limit hardening, credential rotation SLA with break-glass, and data retention/deletion with DPA compliance
 - partially complete: frontend productization, production Helm delivery, operational drills, and live deployment evidence
 - still required: progressive delivery, compliance operations, real paging drill evidence, and the expanded quality program
 
@@ -491,7 +517,7 @@ At a macro level:
 Validation run during this status update (2026-04-26):
 
 - `uv run --project backend ruff check backend/src backend/tests scripts/lint_alert_runbooks.py` - passed
-- `uv run --project backend pytest` - passed, 189 passed, 1 skipped, 0 failed
+- `uv run --project backend pytest` - passed, 202 passed, 1 skipped, 0 failed
 - `npm run --prefix frontend test -- --run` - passed, 7 passed
 - `npm run --prefix frontend build` - passed
 - `helm template dev-squad ./helm -f ./helm/values.yaml` - passed

@@ -8,6 +8,8 @@ from pydantic import BaseModel, Field
 from .api_deprecations import ApiDeprecation
 from .api_versioning import ApiVersioningConfig, install_api_versioning
 from .billing import build_billing_router
+from .compliance import build_data_retention_router
+from .compliance.dpa_gate import DpaGateMiddleware
 from .credentials import build_credential_rotation_router
 from .knowledge import (
     InternalRagSettings,
@@ -155,6 +157,15 @@ def create_app(
             build_credential_rotation_router(
                 database_url=adapters.database.settings.sync_url(),
             )
+        )
+        app.include_router(
+            build_data_retention_router(
+                database_url=adapters.database.settings.sync_url(),
+            )
+        )
+        app.add_middleware(
+            DpaGateMiddleware,
+            database_url=adapters.database.settings.sync_url(),
         )
     return app
 
