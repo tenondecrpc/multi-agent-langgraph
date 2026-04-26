@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from .migrations import MigrationStatus
 
@@ -25,6 +25,7 @@ class PersistenceHealthSnapshot(BaseModel):
     migration: MigrationStatus | None = None
     active_snapshot_id: str | None = None
     migration_revision: str | None = None
+    capability_reasons: list[str] = Field(default_factory=list)
 
 
 class PersistenceHealthService:
@@ -42,6 +43,7 @@ class PersistenceHealthService:
         self.encryption_ready = encryption_ready
         self.migration_status = migration_status
         self.active_snapshot_id = active_snapshot_id
+        self.capability_reasons: dict[str, str] = {}
 
     def snapshot(self) -> PersistenceHealthSnapshot:
         return PersistenceHealthSnapshot(
@@ -63,6 +65,7 @@ class PersistenceHealthService:
             migration=self.migration_status,
             active_snapshot_id=self.active_snapshot_id,
             migration_revision=self.migration_status.current_revision if self.migration_status else None,
+            capability_reasons=sorted(self.capability_reasons.values()),
         )
 
     def update_migration_status(self, status: MigrationStatus) -> None:
@@ -73,22 +76,38 @@ class PersistenceHealthService:
     def update_active_snapshot_id(self, snapshot_id: str | None) -> None:
         self.active_snapshot_id = snapshot_id
 
+    def update_capability_probe(self, name: str, *, ready: bool, reason: str | None = None) -> None:
+        if ready:
+            self.capability_reasons.pop(name, None)
+            return
+        self.capability_reasons[name] = reason or f"{name}_not_ready"
+
     def liveness(self) -> ProbeResult:
         reasons: list[str] = []
-        if self.migration_status is not None and not self.database_ready:
+        configured = self.migration_status is None or self.migration_status.state != "not_configured"
+        if configured and self.migration_status is not None and not self.database_ready:
             reasons.append("database_unhealthy")
-        if self.migration_status is not None and not self.redis_ready:
+        if configured and self.migration_status is not None and not self.redis_ready:
             reasons.append("redis_unhealthy")
         status = "ok" if not reasons else "degraded"
         return ProbeResult(status=status, reasons=reasons)
 
     def readiness(self) -> ProbeResult:
         reasons: list[str] = []
-        if self.migration_status is not None and not self.database_ready:
+        if (
+            self.migration_status is not None
+            and self.migration_status.state != "not_configured"
+            and not self.database_ready
+        ):
             reasons.append("database_unhealthy")
-        if self.migration_status and self.migration_status.current_revision != self.migration_status.expected_revision:
+        if (
+            self.migration_status
+            and self.migration_status.state != "not_configured"
+            and self.migration_status.current_revision != self.migration_status.expected_revision
+        ):
             reasons.append("migration_drift")
         if self.database_ready and self.active_snapshot_id in {"", None}:
             reasons.append("active_snapshot_missing")
+        reasons.extend(sorted(self.capability_reasons.values()))
         status = "ok" if not reasons else "not_ready"
         return ProbeResult(status=status, reasons=reasons)

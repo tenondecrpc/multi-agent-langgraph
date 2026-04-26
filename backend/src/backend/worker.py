@@ -57,3 +57,11 @@ def process_encryption_key_rotation(
         float(report.due_before_rotation),
     )
     return report.rotated_envelopes
+
+
+async def process_knowledge_ingestion(ctx: dict[str, object], job_id: str) -> dict[str, object]:
+    service = ctx.get("knowledge_ingestion_service")
+    if service is None or not hasattr(service, "process_job"):
+        raise RuntimeError("knowledge_ingestion_service_missing")
+    job = service.process_job(job_id)
+    return job.model_dump(mode="json")

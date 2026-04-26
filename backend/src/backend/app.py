@@ -5,6 +5,12 @@ from contextlib import asynccontextmanager
 from fastapi import APIRouter, FastAPI, HTTPException, Response
 from pydantic import BaseModel, Field
 
+from .knowledge import (
+    InternalRagSettings,
+    KnowledgeRepository,
+    build_knowledge_router,
+    probe_pgvector_extension,
+)
 from .persistence.factory import PersistenceAdapters, build_persistence_adapters
 from .persistence.migrations import MigrationRunner
 from .platform import build_platform_routers
@@ -21,9 +27,12 @@ def create_app(
     workflow: RuntimeWorkflow | None = None,
     persistence: PersistenceAdapters | None = None,
     migration_runner: MigrationRunner | None = None,
+    internal_rag_settings: InternalRagSettings | None = None,
+    knowledge_repository: KnowledgeRepository | None = None,
 ) -> FastAPI:
     adapters = persistence or build_persistence_adapters()
     runner = migration_runner or MigrationRunner()
+    rag_settings = internal_rag_settings or InternalRagSettings.from_env()
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -40,6 +49,12 @@ def create_app(
             adapters.health.update_active_snapshot_id(snapshot.snapshot_id)
         except Exception:
             adapters.health.update_active_snapshot_id(None)
+        rag_probe = await probe_pgvector_extension(rag_settings)
+        adapters.health.update_capability_probe(
+            "internal_rag",
+            ready=rag_probe.ready,
+            reason=rag_probe.reason,
+        )
         yield
 
     app = FastAPI(title="LangGraph Dev Squad Backend", version="0.1.0", lifespan=lifespan)
@@ -94,6 +109,13 @@ def create_app(
         webhook_guard=adapters.webhook_guard,
     ):
         app.include_router(router)
+    app.include_router(
+        build_knowledge_router(
+            repository=knowledge_repository,
+            settings=rag_settings,
+            telemetry=adapters.telemetry,
+        )
+    )
     return app
 
 

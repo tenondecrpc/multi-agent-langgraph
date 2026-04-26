@@ -10,8 +10,13 @@ spec:
     - Egress
   egress:
     {{- if .Values.networkPolicy.denyExternalLlmEgress }}
-    - to: []
-      ports: []
+    - to:
+        - podSelector:
+            matchLabels:
+{{ toYaml .Values.networkPolicy.internalEmbedding.podSelector | indent 14 }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.networkPolicy.internalEmbedding.port }}
     {{- else }}
     - to:
         {{- range .Values.networkPolicy.allowedCidrs }}

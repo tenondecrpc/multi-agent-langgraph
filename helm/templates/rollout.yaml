@@ -50,6 +50,32 @@ spec:
                   key: {{ .Values.encryption.wrappingKeyKey }}
             - name: BACKEND_ENCRYPTION_PREVIOUS_KEY_IDS
               value: "{{ .Values.encryption.previousKeyIds }}"
+            - name: INTERNAL_RAG_ENABLED
+              value: "{{ .Values.internalRag.enabled }}"
+            - name: INTERNAL_RAG_EMBEDDING_ENDPOINT
+              value: "{{ .Values.internalRag.embeddingEndpoint }}"
+            - name: INTERNAL_RAG_EMBEDDING_MODEL
+              value: "{{ .Values.internalRag.embeddingModel }}"
+            {{- if .Values.langsmith.enabled }}
+            - name: LANGCHAIN_TRACING_V2
+              value: "true"
+            - name: LANGSMITH_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.langsmith.secretName }}
+                  key: {{ .Values.langsmith.apiKeySecretKey }}
+            - name: LANGSMITH_PROJECT
+              value: "{{ .Values.langsmith.project }}"
+            {{- if .Values.langsmith.endpoint }}
+            - name: LANGSMITH_ENDPOINT
+              value: "{{ .Values.langsmith.endpoint }}"
+            {{- end }}
+            {{- else }}
+            - name: DO_NOT_TRACK
+              value: "1"
+            - name: LANGCHAIN_TRACING_V2
+              value: "false"
+            {{- end }}
           readinessProbe:
             httpGet:
               path: /readyz

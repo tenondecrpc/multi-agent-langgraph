@@ -61,6 +61,7 @@ class EscalationReason(StrEnum):
     PROVIDER_FAILOVER_EXHAUSTED = "provider_failover_exhausted"
     ORPHANED_BUDGET_RESERVATION_DETECTED = "orphaned_budget_reservation_detected"
     BILLING_RECONCILIATION_DRIFT = "billing_reconciliation_drift"
+    BRANCH_PROTECTION_MISSING = "branch_protection_missing"
 
 
 class TenantContext(BaseModel):
@@ -180,6 +181,10 @@ class ExecutionRequest(BaseModel):
     skip_required_tests: bool = False
     diff_too_large: bool = False
     merge_conflict: bool = False
+    repo_full_name: str = ""
+    target_branch: str = "main"
+    github_token: str = ""
+    github_base_url: str = "https://api.github.com"
 
 
 class ResolvedContextEntry(BaseModel):
@@ -191,6 +196,14 @@ class ResolvedContextEntry(BaseModel):
 class ResolvedContextBundle(BaseModel):
     entries: list[ResolvedContextEntry]
     external_research_reason: str | None = None
+
+
+class KnowledgeExcerptSummary(BaseModel):
+    chunk_id: str
+    document_id: str
+    source_type: str
+    distance: float
+    excerpt: str
 
 
 class ContextRequest(BaseModel):
@@ -215,6 +228,7 @@ class TicketRunState(BaseModel):
     implementation_plan: RuntimeArtifact | None = None
     task_list: TaskListArtifact | None = None
     artifact_hashes: dict[str, str] = Field(default_factory=dict)
+    knowledge_excerpts: list[KnowledgeExcerptSummary] = Field(default_factory=list)
 
     status: RunStatus = RunStatus.PLANNING
     current_node: RunNode = RunNode.INTAKE
@@ -242,6 +256,7 @@ class TicketRunState(BaseModel):
     review_approved: bool = False
 
     pre_pr_sync_passed: bool = False
+    branch_protection_passed: bool = False
     pr_created: bool = False
     last_retry_reason: str | None = None
     state_schema_version: str = "1"

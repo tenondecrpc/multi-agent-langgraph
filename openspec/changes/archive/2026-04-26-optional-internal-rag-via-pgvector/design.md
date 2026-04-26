@@ -20,6 +20,10 @@ Extending PostgreSQL with `pgvector` is the only sanctioned path to internal RAG
 
 ## Decisions
 
+### Decision: Compose with persistence and feature-flag foundations
+
+The RAG schema reuses the existing PostgreSQL persistence backbone and does not introduce a new production datastore. All mutable enablement state depends on the `progressive-delivery-and-feature-flag-kill-switches` change: `internal_rag_enabled` is registered in the flag catalog, mirrored into PostgreSQL for audit and read-through fallback, and evaluated before any admin or runtime RAG path executes. If the flag mirror is unavailable or stale past its TTL, runtime retrieval fails closed.
+
 ### Decision: Feature flag and capability probe
 
 `internal_rag_enabled` flag in the control plane governs the surface. On boot, the backend probes `pgvector` availability and fails closed if the flag is on and the extension is not present.
@@ -39,6 +43,17 @@ Each retrieval during a run persists the excerpt summary (truncated text, chunk 
 ### Decision: Air-gapped embedding
 
 When connected, embeddings call an operator-configured embedding endpoint. In air-gapped mode, the endpoint is a self-hosted model in-cluster; no vendor call is attempted.
+
+### Decision: LangSmith tracing and vendor telemetry suppression
+
+`langsmith` (a transitive dependency via `langgraph`) flushes PostHog analytics events on every process exit. In air-gapped deployments the NetworkPolicy blocks that egress and generates error logs on every pod shutdown.
+
+Both Helm templates handle this with a single `langsmith.enabled` toggle:
+
+- `langsmith.enabled: true` (connected profile, opt-in): sets `LANGCHAIN_TRACING_V2=true`, mounts `LANGSMITH_API_KEY` from a Kubernetes secret, and optionally sets `LANGSMITH_ENDPOINT` (for self-hosted LangSmith) and `LANGSMITH_PROJECT`.
+- `langsmith.enabled: false` (default, mandatory in air-gapped): sets `DO_NOT_TRACK=1` and `LANGCHAIN_TRACING_V2=false` to suppress all vendor telemetry and prevent PostHog network flush errors.
+
+The air-gapped profile hard-codes `langsmith.enabled: false` and cannot be overridden to a vendor-hosted endpoint. Operators running a self-hosted LangSmith instance inside their air-gapped cluster may enable it and set `langsmith.endpoint` to the internal server URL, provided the NetworkPolicy allows egress to that pod.
 
 ## Risks / Trade-offs
 

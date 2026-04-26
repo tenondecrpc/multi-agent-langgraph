@@ -193,6 +193,7 @@ def test_postgres_control_plane_rollback_keeps_pinned_runs_stable(
         rationale="activate baseline",
         comparison_report=_shadow_report(graph_v1.record_id, active_snapshot_id="none"),
     )
+    _seed_run(migrated_postgres, "run-a")
     store.pin_run_snapshot("run-a", snapshot_v1.snapshot_id, "active")
 
     snapshot_v2 = store.activate(
@@ -205,6 +206,7 @@ def test_postgres_control_plane_rollback_keeps_pinned_runs_stable(
             active_snapshot_id=snapshot_v1.snapshot_id,
         ),
     )
+    _seed_run(migrated_postgres, "run-b")
     store.pin_run_snapshot("run-b", snapshot_v2.snapshot_id, "paused")
 
     rolled_back = store.rollback(
@@ -400,6 +402,40 @@ def _shadow_report(graph_version_id: str, *, active_snapshot_id: str) -> object:
             max_cost_delta_usd=Decimal("2.00"),
         ),
     )
+
+
+def _seed_run(database_url: str, run_id: str) -> None:
+    with _connect(database_url) as connection:
+        connection.execute(
+            """
+            INSERT INTO runs (
+                run_id,
+                thread_id,
+                tenant_id,
+                team_id,
+                repo_id,
+                ticket_key,
+                status,
+                current_node,
+                config_snapshot_id,
+                graph_profile_id,
+                catalog_version
+            ) VALUES (
+                %(run_id)s,
+                %(thread_id)s,
+                'tenant-alpha',
+                'team-core',
+                'repo-main',
+                'ENG-1',
+                'active',
+                'planner',
+                'config-v1',
+                'ticket_to_pr_v1',
+                'catalog-v1'
+            )
+            """,
+            {"run_id": run_id, "thread_id": f"tenant-alpha:ENG-1:{run_id}"},
+        )
 
 
 def _connect(database_url: str) -> psycopg.Connection:

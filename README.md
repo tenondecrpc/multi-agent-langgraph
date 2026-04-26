@@ -123,6 +123,57 @@ kubectl delete -f k8s/
 minikube stop
 ```
 
+## Agent observability with LangSmith
+
+LangSmith tracing is disabled by default. The setup differs between local Minikube and a real cluster deployment.
+
+### Local Minikube
+
+Create the Kubernetes secret directly (no Vault in local):
+
+```bash
+kubectl create secret generic dev-squad-langsmith \
+  --from-literal=api-key=<your-LANGSMITH_API_KEY>
+```
+
+Then set the env vars in the pod before applying the manifests:
+
+```bash
+kubectl set env deployment/backend \
+  LANGCHAIN_TRACING_V2=true \
+  LANGSMITH_API_KEY=<your-LANGSMITH_API_KEY> \
+  LANGSMITH_PROJECT=langgraph-dev-squad-local
+```
+
+### Staging and production (Helm + Vault)
+
+Store the API key in Vault once. External Secrets Operator syncs it into the cluster automatically (refreshes every hour).
+
+```bash
+vault kv patch kv/langgraph-dev-squad/runtime \
+  langsmith_api_key=<your-LANGSMITH_API_KEY>
+```
+
+Then deploy with the environment-specific values file:
+
+```bash
+# Staging
+helm upgrade --install dev-squad ./helm \
+  -f helm/values.yaml \
+  -f helm/values-staging.yaml
+
+# Production
+helm upgrade --install dev-squad ./helm \
+  -f helm/values.yaml \
+  -f helm/values-prod.yaml
+```
+
+Each file sets `langsmith.enabled: true` and a dedicated project name (`langgraph-dev-squad-staging` / `langgraph-dev-squad-prod`) so traces are separated by environment in the LangSmith UI.
+
+For a self-hosted LangSmith instance add `langsmith.endpoint: "https://langsmith.example.internal"` to your values override.
+
+> **Air-gapped deployments:** LangSmith is permanently disabled in `values-air-gapped.yaml`. The pods set `DO_NOT_TRACK=1` and `LANGCHAIN_TRACING_V2=false` to suppress PostHog network flush errors from the `langsmith` transitive dependency.
+
 ## Development commands
 
 ```bash

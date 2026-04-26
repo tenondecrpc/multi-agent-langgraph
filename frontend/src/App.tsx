@@ -65,6 +65,7 @@ export default function App() {
   );
   const [uploadNotice, setUploadNotice] = useState("");
   const [dryRunNotice, setDryRunNotice] = useState("");
+  const [patModeActive, setPatModeActive] = useState(false);
 
   const visibleTabs = roleTabs[role];
   const graphValidation = validateGraphCandidate(graphSource);
@@ -337,6 +338,38 @@ export default function App() {
 
           {tab === "admin" ? (
             <div className="stack">
+              {patModeActive ? (
+                <div
+                  role="alert"
+                  aria-live="assertive"
+                  className="pat-mode-banner"
+                  style={{
+                    background: "#7c3b00",
+                    color: "#fff8f0",
+                    border: "2px solid #d46800",
+                    borderRadius: "4px",
+                    padding: "12px 16px",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "12px",
+                  }}
+                >
+                  <strong aria-label="Warning">PAT Mode Active</strong>
+                  <span>
+                    This team is using a Personal Access Token instead of the GitHub App. Rate limits are reduced and credential rotation SLA applies.
+                  </span>
+                  {role === "super-admin" ? (
+                    <button
+                      type="button"
+                      onClick={() => setPatModeActive(false)}
+                      aria-label="Dismiss PAT mode notice"
+                      style={{ marginLeft: "auto" }}
+                    >
+                      Dismiss
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
               <section className="panel">
                 <div className="panel-header">
                   <h2>{t(locale, "admin")}</h2>

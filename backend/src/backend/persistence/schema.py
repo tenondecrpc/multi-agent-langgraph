@@ -5,6 +5,7 @@ from sqlalchemy import (
     Boolean,
     Column,
     DateTime,
+    ForeignKey,
     Integer,
     MetaData,
     Numeric,
@@ -15,6 +16,17 @@ from sqlalchemy import (
     text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.types import UserDefinedType
+
+
+class Vector(UserDefinedType):
+    cache_ok = True
+
+    def __init__(self, dimensions: int) -> None:
+        self.dimensions = dimensions
+
+    def get_col_spec(self, **_: object) -> str:
+        return f"vector({self.dimensions})"
 
 NAMING_CONVENTION = {
     "ix": "ix_%(table_name)s_%(column_0_N_name)s",
@@ -462,4 +474,204 @@ audit_events = Table(
         nullable=False,
         server_default=text("now()"),
     ),
+)
+
+github_app_installations = Table(
+    "github_app_installations",
+    metadata,
+    Column("installation_id", String(64), primary_key=True),
+    Column("tenant_id", String(128), nullable=False),
+    Column("team_id", String(128), nullable=False),
+    Column("account_login", String(255), nullable=False),
+    Column("github_installation_id", BigInteger, nullable=False),
+    Column("permissions_hash", String(128), nullable=False),
+    Column("github_base_url", String(512), nullable=False, server_default=text("'https://api.github.com'")),
+    Column("drift_acknowledged", Boolean, nullable=False, server_default=text("true")),
+    Column(
+        "granted_at",
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("now()"),
+    ),
+    Column("revoked_at", DateTime(timezone=True), nullable=True),
+    Column(
+        "created_at",
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("now()"),
+    ),
+    Column(
+        "updated_at",
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("now()"),
+    ),
+    UniqueConstraint("tenant_id", "team_id", name="uq_github_app_installations_tenant_team"),
+)
+
+github_integration_credentials = Table(
+    "github_integration_credentials",
+    metadata,
+    Column("credential_id", String(64), primary_key=True),
+    Column("tenant_id", String(128), nullable=False),
+    Column("team_id", String(128), nullable=False),
+    Column("credential_type", String(32), nullable=False),
+    Column("encrypted_payload", Text, nullable=False),
+    Column("kek_id", String(255), nullable=False),
+    Column(
+        "rotated_at",
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("now()"),
+    ),
+    Column("rotation_window_days", Integer, nullable=False, server_default=text("90")),
+    Column(
+        "created_at",
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("now()"),
+    ),
+    Column(
+        "updated_at",
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("now()"),
+    ),
+    UniqueConstraint(
+        "tenant_id", "team_id", "credential_type",
+        name="uq_github_integration_credentials_tenant_team_type",
+    ),
+)
+
+pat_opt_ins = Table(
+    "pat_opt_ins",
+    metadata,
+    Column("opt_in_id", String(64), primary_key=True),
+    Column("tenant_id", String(128), nullable=False),
+    Column("team_id", String(128), nullable=False),
+    Column("approver_actor", String(255), nullable=False),
+    Column("rationale", Text, nullable=False),
+    Column("allowed_scopes", JSONB, nullable=False, server_default=text("'[]'::jsonb")),
+    Column(
+        "expires_at",
+        DateTime(timezone=True),
+        nullable=False,
+    ),
+    Column("revoked_at", DateTime(timezone=True), nullable=True),
+    Column(
+        "created_at",
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("now()"),
+    ),
+)
+
+branch_protection_verifications = Table(
+    "branch_protection_verifications",
+    metadata,
+    Column("verification_id", String(64), primary_key=True),
+    Column("run_id", String(64), nullable=False),
+    Column("tenant_id", String(128), nullable=False),
+    Column("team_id", String(128), nullable=False),
+    Column("repo_full_name", String(512), nullable=False),
+    Column("branch", String(255), nullable=False),
+    Column("shadow_mode", Boolean, nullable=False, server_default=text("true")),
+    Column("passed", Boolean, nullable=False),
+    Column("missing_protections", JSONB, nullable=False, server_default=text("'[]'::jsonb")),
+    Column("evidence_summary", Text, nullable=False),
+    Column(
+        "verified_at",
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("now()"),
+    ),
+)
+
+knowledge_documents = Table(
+    "knowledge_documents",
+    metadata,
+    Column("document_id", String(64), primary_key=True),
+    Column("tenant_id", String(128), nullable=False),
+    Column("team_id", String(128), nullable=False),
+    Column("repo_id", String(255), nullable=True),
+    Column("title", String(512), nullable=False),
+    Column("source_type", String(64), nullable=False),
+    Column("source_uri", Text, nullable=False),
+    Column("source_version", String(255), nullable=True),
+    Column("content_sha256", String(64), nullable=False),
+    Column("metadata", JSONB, nullable=False, server_default=text("'{}'::jsonb")),
+    Column("active", Boolean, nullable=False, server_default=text("true")),
+    Column("created_by", String(255), nullable=False),
+    Column(
+        "created_at",
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("now()"),
+    ),
+    Column(
+        "updated_at",
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("now()"),
+    ),
+    UniqueConstraint("tenant_id", "source_uri", "content_sha256", name="uq_knowledge_documents_source_hash"),
+)
+
+knowledge_ingestion_jobs = Table(
+    "knowledge_ingestion_jobs",
+    metadata,
+    Column("job_id", String(64), primary_key=True),
+    Column("tenant_id", String(128), nullable=False),
+    Column("team_id", String(128), nullable=False),
+    Column(
+        "document_id",
+        String(64),
+        ForeignKey("knowledge_documents.document_id", ondelete="SET NULL"),
+        nullable=True,
+    ),
+    Column("source_uri", Text, nullable=False),
+    Column("status", String(32), nullable=False),
+    Column("embedding_model", String(255), nullable=False),
+    Column("embedding_dims", Integer, nullable=False, server_default=text("1536")),
+    Column("total_chunks", Integer, nullable=False, server_default=text("0")),
+    Column("processed_chunks", Integer, nullable=False, server_default=text("0")),
+    Column("error_message", Text, nullable=True),
+    Column("created_by", String(255), nullable=False),
+    Column(
+        "created_at",
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("now()"),
+    ),
+    Column("started_at", DateTime(timezone=True), nullable=True),
+    Column("completed_at", DateTime(timezone=True), nullable=True),
+)
+
+knowledge_chunks = Table(
+    "knowledge_chunks",
+    metadata,
+    Column("chunk_id", String(64), primary_key=True),
+    Column("tenant_id", String(128), nullable=False),
+    Column("team_id", String(128), nullable=False),
+    Column(
+        "document_id",
+        String(64),
+        ForeignKey("knowledge_documents.document_id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    Column("chunk_index", Integer, nullable=False),
+    Column("source_type", String(64), nullable=False),
+    Column("content", Text, nullable=False),
+    Column("content_sha256", String(64), nullable=False),
+    Column("embedding_model", String(255), nullable=False),
+    Column("embedding_dims", Integer, nullable=False, server_default=text("1536")),
+    Column("embedding", Vector(1536), nullable=False),
+    Column("metadata", JSONB, nullable=False, server_default=text("'{}'::jsonb")),
+    Column(
+        "created_at",
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("now()"),
+    ),
+    UniqueConstraint("tenant_id", "document_id", "chunk_index", name="uq_knowledge_chunks_tenant_document_index"),
 )

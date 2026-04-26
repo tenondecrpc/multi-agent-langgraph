@@ -201,8 +201,8 @@ def test_air_gapped_provider_health_store_fails_closed_without_redis(
 def _connect(database_url: str):
     parsed = make_url(database_url)
     return psycopg.connect(
-        host=parsed.host,
-        port=parsed.port,
+        host=parsed.query.get("host") or parsed.host,
+        port=parsed.query.get("port") or parsed.port,
         dbname=parsed.database,
         user=parsed.username,
         password=parsed.password,

@@ -1,0 +1,42 @@
+groups:
+  - name: github-integration
+    rules:
+      - alert: GitHubMintFailureRateHigh
+        expr: increase(devsquad_github_mint_failure_total[5m]) > 5
+        for: 5m
+        labels:
+          severity: page
+          subsystem: github
+        annotations:
+          summary: GitHub installation-token mint failure rate is high
+          runbook: docs/runbooks/github-mint-failure.md
+
+      - alert: GitHubMintLatencyHigh
+        expr: histogram_quantile(0.95, rate(devsquad_github_mint_latency_ms_bucket[5m])) > 3000
+        for: 5m
+        labels:
+          severity: warning
+          subsystem: github
+        annotations:
+          summary: GitHub installation-token mint p95 latency exceeds 3 seconds
+          runbook: docs/runbooks/github-mint-failure.md
+
+      - alert: GitHubPermissionDriftDetected
+        expr: increase(devsquad_github_permission_drift_total[15m]) > 0
+        for: 0m
+        labels:
+          severity: page
+          subsystem: github
+        annotations:
+          summary: GitHub App permission drift detected - mint calls blocked until acknowledged
+          runbook: docs/runbooks/github-permission-drift.md
+
+      - alert: GitHubBranchProtectionFailures
+        expr: increase(devsquad_github_branch_protection_failure_total{shadow_mode="false"}[15m]) > 0
+        for: 0m
+        labels:
+          severity: warning
+          subsystem: github
+        annotations:
+          summary: Branch protection check blocked PR creation - escalated to security_review
+          runbook: docs/runbooks/github-permission-drift.md

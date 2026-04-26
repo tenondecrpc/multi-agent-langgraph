@@ -13,6 +13,28 @@ encryption:
 networkPolicy:
   denyExternalLlmEgress: true
   allowedCidrs: []
+  internalEmbedding:
+    podSelector:
+      app: dev-squad-embedding
+    port: 8080
+
+internalRag:
+  enabled: "false"
+  embeddingEndpoint: "http://dev-squad-embedding:8080/embed"
+  embeddingModel: "self-hosted-embedding-v1"
 
 rollout:
+  enabled: false
+
+# Air-gapped profile: set baseUrl to the on-premises GitHub Enterprise Server API endpoint.
+# The App private key must be pre-seeded in Vault before pod startup (offline bootstrap).
+# branchProtectionEnforce defaults to "false" (shadow mode) to allow initial onboarding.
+github:
+  baseUrl: "https://github.example.internal/api/v3"
+  branchProtectionEnforce: "false"
+
+# LangSmith is disabled in air-gapped deployments. DO_NOT_TRACK and LANGCHAIN_TRACING_V2
+# are set by the templates when enabled is false to prevent PostHog network flush errors
+# caused by the langsmith transitive dependency trying to reach vendor analytics endpoints.
+langsmith:
   enabled: false

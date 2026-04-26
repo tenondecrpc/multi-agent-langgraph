@@ -37,6 +37,15 @@ networkPolicy:
   denyExternalLlmEgress: false
   allowedCidrs:
     - 0.0.0.0/0
+  internalEmbedding:
+    podSelector:
+      app: dev-squad-embedding
+    port: 8080
+
+internalRag:
+  enabled: "false"
+  embeddingEndpoint: "http://dev-squad-embedding:8080/embed"
+  embeddingModel: "self-hosted-embedding-v1"
 
 rollout:
   enabled: true
@@ -52,3 +61,32 @@ rollout:
       - pause:
           duration: 180
       - setWeight: 100
+
+# GitHub App integration (connected profile).
+# The App private key is stored in Vault; never set it as a plain value here.
+# externalSecrets must be enabled to pull GITHUB_APP_PRIVATE_KEY_PEM from Vault.
+github:
+  appId: ""
+  # Vault path to the GitHub App RSA private key PEM (resolved via External Secrets Operator).
+  privateKeyVaultPath: "secret/github/app-private-key"
+  # Override for GitHub Enterprise Server deployments; leave empty for github.com.
+  baseUrl: ""
+  # Kill switch: set to "true" to flip branch-protection from shadow to enforce mode.
+  branchProtectionEnforce: "false"
+  # ExternalSecrets ref for the App private key secret name.
+  privateKeySecretName: dev-squad-github
+  privateKeySecretKey: app-private-key-pem
+
+# LangSmith tracing for agent observability (connected profile).
+# enabled: flip to true per environment via a values override file.
+# The API key is pulled from Vault via ESO alongside the other runtime secrets.
+# vaultProperty must match the key name stored at externalSecrets.secretPath in Vault.
+# Leave endpoint empty to use LangSmith cloud (https://api.smith.langchain.com).
+# For a self-hosted LangSmith instance set endpoint to your internal server URL.
+langsmith:
+  enabled: false
+  secretName: dev-squad-persistence
+  apiKeySecretKey: langsmith-api-key
+  vaultProperty: langsmith_api_key
+  endpoint: ""
+  project: "langgraph-dev-squad"

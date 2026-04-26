@@ -4,6 +4,12 @@ from typing import TypedDict
 
 from langgraph.graph import END, START, StateGraph
 
+from backend.integrations.github.branch_protection import (
+    BranchProtectionConfig,
+    BranchProtectionVerifier,
+    _NullBranchProtectionAPI,
+    is_enforce_mode,
+)
 from backend.persistence.contracts import RunRepository
 from backend.persistence.factory import build_persistence_adapters
 
@@ -35,11 +41,23 @@ class RuntimeWorkflow:
         planner: RuleBasedPlannerArtifactService | None = None,
         context_resolver: LocalFirstContextResolver | None = None,
         repository: RunRepository | None = None,
+        branch_protection_verifier: BranchProtectionVerifier | None = None,
+        branch_protection_config: BranchProtectionConfig | None = None,
     ) -> None:
         self.constitution_loader = constitution_loader or StaticConstitutionLoader()
         self.planner = planner or RuleBasedPlannerArtifactService()
         self.context_resolver = context_resolver or LocalFirstContextResolver()
         self.repository = repository or build_persistence_adapters().run_repository
+        self._branch_protection_verifier = branch_protection_verifier or BranchProtectionVerifier(
+            api=_NullBranchProtectionAPI(),
+            shadow_mode=not is_enforce_mode(),
+        )
+        self._branch_protection_config = branch_protection_config or BranchProtectionConfig(
+            required_status_checks=[],
+            require_review=True,
+            require_signed_commits=False,
+            require_linear_history=False,
+        )
         self.graph = self._build_graph()
 
     def execute(
@@ -88,6 +106,7 @@ class RuntimeWorkflow:
             EscalationReason.PROVIDER_FAILOVER_EXHAUSTED.value: "ops://llm-routing",
             EscalationReason.ORPHANED_BUDGET_RESERVATION_DETECTED.value: "ops://budgeting",
             EscalationReason.BILLING_RECONCILIATION_DRIFT.value: "ops://metering",
+            EscalationReason.BRANCH_PROTECTION_MISSING.value: "ops://security-review",
         }
 
     def _build_graph(self):
@@ -311,6 +330,20 @@ class RuntimeWorkflow:
             run.paused_at_node = RunNode.PRE_PR_SYNC
             return {"run": run}
 
+        protection_result = self._branch_protection_verifier.verify(
+            repo_full_name=execution_request.repo_full_name,
+            branch=execution_request.target_branch,
+            token=execution_request.github_token,
+            base_url=execution_request.github_base_url,
+            required_config=self._branch_protection_config,
+        )
+
+        if not protection_result.passed and not protection_result.shadow_mode:
+            run.escalation_reason = EscalationReason.BRANCH_PROTECTION_MISSING
+            run.paused_at_node = RunNode.PRE_PR_SYNC
+            return {"run": run}
+
+        run.branch_protection_passed = protection_result.passed or protection_result.shadow_mode
         run.pre_pr_sync_passed = True
         return {"run": run}
 
@@ -318,7 +351,7 @@ class RuntimeWorkflow:
         run = state["run"]
         run.transition_to(RunNode.PR_CREATOR)
 
-        if not (run.tests_passed and run.review_approved and run.pre_pr_sync_passed):
+        if not (run.tests_passed and run.review_approved and run.pre_pr_sync_passed and run.branch_protection_passed):
             run.escalation_reason = EscalationReason.INVALID_ROUTE_ATTEMPT
             run.paused_at_node = RunNode.PR_CREATOR
             return {"run": run}

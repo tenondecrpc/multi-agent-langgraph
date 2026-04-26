@@ -224,8 +224,8 @@ def _run(command: list[str]) -> None:
 def _connect(database_url: str):
     parsed = make_url(database_url)
     return psycopg.connect(
-        host=parsed.host,
-        port=parsed.port,
+        host=parsed.query.get("host") or parsed.host,
+        port=parsed.query.get("port") or parsed.port,
         dbname=parsed.database,
         user=parsed.username,
         password=parsed.password,

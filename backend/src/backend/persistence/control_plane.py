@@ -12,7 +12,7 @@ from uuid import uuid4
 from pydantic import BaseModel
 from redis import Redis
 from redis.exceptions import RedisError
-from sqlalchemy import Connection, Engine, create_engine, select, text
+from sqlalchemy import Connection, Engine, create_engine, delete, select, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from backend.control_plane.shadow import ShadowComparisonReport
@@ -395,6 +395,11 @@ class PostgresControlPlaneStore:
                     snapshot_id = row["snapshot_id"]
                     if snapshot_id == active_snapshot_id or snapshot_id in referenced_snapshot_ids:
                         continue
+                    connection.execute(
+                        delete(run_snapshot_bindings)
+                        .where(run_snapshot_bindings.c.snapshot_id == snapshot_id)
+                        .where(~run_snapshot_bindings.c.status.in_(tuple(NON_TERMINAL_RUN_STATES)))
+                    )
                     connection.execute(
                         text("DELETE FROM snapshots WHERE snapshot_id = :snapshot_id"),
                         {"snapshot_id": snapshot_id},

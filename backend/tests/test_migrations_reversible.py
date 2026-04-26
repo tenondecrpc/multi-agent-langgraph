@@ -107,6 +107,9 @@ def test_alembic_upgrade_downgrade_round_trip_restores_seeded_rows(temporary_pos
         "budget_denials_tenant_scope",
         "budget_reservations_tenant_scope",
         "dead_letter_records_tenant_scope",
+        "knowledge_chunks_tenant_scope",
+        "knowledge_documents_tenant_scope",
+        "knowledge_ingestion_jobs_tenant_scope",
         "metering_facts_default_tenant_scope",
         "metering_facts_tenant_scope",
         "metering_hourly_rollups_tenant_scope",
@@ -114,7 +117,7 @@ def test_alembic_upgrade_downgrade_round_trip_restores_seeded_rows(temporary_pos
         "webhook_idempotency_records_tenant_scope",
     ]
 
-    command.downgrade(config, "-1")
+    command.downgrade(config, "base")
     assert get_current_revision(temporary_postgres) is None
 
     command.upgrade(config, "head")
@@ -125,6 +128,76 @@ def test_alembic_upgrade_downgrade_round_trip_restores_seeded_rows(temporary_pos
         seeded_rows=seeded_rows,
     )
     assert restored_rows == seeded_rows
+
+
+def test_internal_rag_pgvector_migration_round_trip(temporary_postgres: str) -> None:
+    with _connect(temporary_postgres) as connection:
+        available = connection.execute(
+            "SELECT EXISTS (SELECT 1 FROM pg_available_extensions WHERE name = 'vector') AS available"
+        ).fetchone()
+
+    if not available["available"]:
+        pytest.skip("pgvector extension is not available in this PostgreSQL installation")
+
+    config = build_alembic_config(temporary_postgres)
+    command.upgrade(config, "20260424_0009")
+
+    with _connect(temporary_postgres) as connection:
+        objects = connection.execute(
+            """
+            SELECT
+                to_regclass('knowledge_documents') AS documents_table,
+                to_regclass('knowledge_chunks') AS chunks_table,
+                to_regclass('knowledge_ingestion_jobs') AS jobs_table,
+                to_regclass('ix_knowledge_chunks_embedding_hnsw') AS hnsw_index
+            """
+        ).fetchone()
+        vector_extension = connection.execute(
+            "SELECT extname FROM pg_extension WHERE extname = 'vector'"
+        ).fetchone()
+        policies = connection.execute(
+            """
+            SELECT policyname
+            FROM pg_policies
+            WHERE tablename IN (
+                'knowledge_documents',
+                'knowledge_chunks',
+                'knowledge_ingestion_jobs'
+            )
+            ORDER BY policyname
+            """
+        ).fetchall()
+
+    assert dict(objects) == {
+        "documents_table": "knowledge_documents",
+        "chunks_table": "knowledge_chunks",
+        "jobs_table": "knowledge_ingestion_jobs",
+        "hnsw_index": "ix_knowledge_chunks_embedding_hnsw",
+    }
+    assert vector_extension["extname"] == "vector"
+    assert [row["policyname"] for row in policies] == [
+        "knowledge_chunks_tenant_scope",
+        "knowledge_documents_tenant_scope",
+        "knowledge_ingestion_jobs_tenant_scope",
+    ]
+
+    command.downgrade(config, "20260422_0008")
+
+    with _connect(temporary_postgres) as connection:
+        removed_objects = connection.execute(
+            """
+            SELECT
+                to_regclass('knowledge_documents') AS documents_table,
+                to_regclass('knowledge_chunks') AS chunks_table,
+                to_regclass('knowledge_ingestion_jobs') AS jobs_table
+            """
+        ).fetchone()
+
+    assert dict(removed_objects) == {
+        "documents_table": None,
+        "chunks_table": None,
+        "jobs_table": None,
+    }
 
 
 def _seed_rows(

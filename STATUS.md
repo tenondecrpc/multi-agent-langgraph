@@ -1,25 +1,54 @@
 # STATUS
 
-Last updated: 2026-04-18
+Last updated: 2026-04-24
 
 ## Overall status
 
-LangGraph Dev Squad is in a pre-production state with substantial executable backend and frontend slices already implemented. The repository contains a working runtime simulation path, tested policy and persistence foundations, and an operator UI shell, but it is not yet 100% production-operational against the full scope described in `docs/PLAN.md`.
+LangGraph Dev Squad is still pre-production, but the repository has moved beyond a scaffold. It now contains executable backend and frontend slices, a runnable runtime simulation path, durable PostgreSQL and Redis persistence adapters, baseline Helm packaging, and tested policy foundations.
 
-This document distinguishes between:
+This is not yet a 100% production-operational enterprise deployment. The remaining gaps are mostly around production hardening, connected and `air_gapped` deployment rehearsals, supply-chain enforcement, API compatibility gates, incident/status operations, and the full quality program.
 
-- implemented foundations that are already present in code and covered by the archived OpenSpec phases
-- remaining work required before the system can be considered fully operational in production
+This document compares three sources:
 
-## Macro items/specs already completed
+- actual repository code, tests, docs, and Helm manifests
+- archived OpenSpec changes under `openspec/changes/archive`
+- active OpenSpec changes under `openspec/changes`
 
-The following macro areas are implemented as repository slices and have corresponding archived OpenSpec phases and test coverage.
+## OpenSpec status snapshot
+
+Archived and treated as completed foundation work:
+
+- `2026-04-18-phase-1-runtime-sdd-pipeline`
+- `2026-04-18-phase-2-platform-and-sandbox`
+- `2026-04-18-phase-3-tenant-security-and-access`
+- `2026-04-18-phase-4-llm-governance-and-metering`
+- `2026-04-18-phase-5-config-driven-graph-and-admin-control`
+- `2026-04-18-phase-6-operator-ui-and-control-room`
+- `2026-04-18-phase-7-observability-reliability-and-release`
+- `2026-04-22-replace-in-memory-with-postgres-redis`
+- `2026-04-24-github-app-pat-onboarding-mechanics`
+
+Active changes still open:
+
+- `air-gapped-deployment-profile` - not implemented
+- `api-versioning-and-openapi-diff-gate` - not implemented
+- `billing-rate-card-reconciliation` - not implemented
+- `chaos-fuzz-and-prompt-regression-testing-program` - not implemented
+- `credential-rotation-sla-and-break-glass` - not implemented
+- `data-retention-deletion-and-dpa-compliance` - not implemented
+- `jira-webhook-replay-and-rate-limit-hardening` - not implemented beyond the existing foundation
+- `optional-internal-rag-via-pgvector` - implemented and locally validated; pending customer staging evidence for archive gate (task 9.1)
+- `progressive-delivery-and-feature-flag-kill-switches` - not implemented as a full change
+- `public-status-page-and-incident-runbooks` - not implemented
+- `supply-chain-and-admission-controller` - not implemented
+
+## Implemented foundations
 
 ### 1. Runtime SDD backbone
 
 Status: Implemented foundation
 
-Covered areas:
+Covered OpenSpec areas:
 
 - `autonomous-ticket-flow`
 - `runtime-artifact-lifecycle`
@@ -30,16 +59,16 @@ What exists now:
 
 - planner-owned artifact flow before any repo-writing path
 - readiness gate before coder execution
-- bounded clarify, test, and review loops
+- bounded clarification, test, and review loops
 - escalation sink validation
-- pre-PR sync and PR path guard structure
+- diff, merge-conflict, branch-protection, pre-PR sync, and PR path guard structure
 - runtime simulation API for exercising the flow
 
 ### 2. Platform and execution foundations
 
 Status: Implemented foundation
 
-Covered areas:
+Covered OpenSpec areas:
 
 - `deployment-topology`
 - `sandbox-execution`
@@ -47,17 +76,18 @@ Covered areas:
 
 What exists now:
 
+- FastAPI route groups for the current `/api/v1` surface
 - queue and DLQ contracts
 - weighted-fair dispatch logic
 - worker drain and checkpoint semantics
 - sandbox job template generation
-- initial persistence and worker wiring abstractions
+- local Kubernetes manifests under `k8s/`
 
 ### 3. Security, tenancy, and access foundations
 
 Status: Implemented foundation
 
-Covered areas:
+Covered OpenSpec areas:
 
 - `tenant-isolation-and-credentials`
 - `oidc-rbac-access`
@@ -76,7 +106,7 @@ What exists now:
 
 Status: Implemented foundation
 
-Covered areas:
+Covered OpenSpec areas:
 
 - `model-catalog-and-token-caps`
 - `provider-routing-and-failover`
@@ -87,9 +117,10 @@ What exists now:
 
 - model catalog and role token policies
 - provider routing and failover logic
+- Redis-shared provider health store in the production adapter path
 - atomic budget reservation semantics
-- durable budget reservation cutover using PostgreSQL ledger rows plus Redis-backed atomic counters
-- durable metering facts in PostgreSQL plus hourly rollups for export
+- PostgreSQL-backed budget reservation and charge records
+- PostgreSQL-backed metering facts and hourly rollups
 - CSV export sourced from rollups with reconciliation coverage against raw facts
 - contract tests for failover, budgeting, and settlement behavior
 
@@ -97,7 +128,7 @@ What exists now:
 
 Status: Implemented foundation
 
-Covered areas:
+Covered OpenSpec areas:
 
 - `graph-configuration-runtime`
 - `graph-shadow-mode`
@@ -107,16 +138,37 @@ Covered areas:
 What exists now:
 
 - graph validation rules for protected workflow invariants
-- versioned config and snapshot concepts
-- rollback-safe snapshot pinning concepts
+- versioned graph and agent config concepts
+- snapshot pinning and rollback primitives
 - shadow-mode evaluation primitives
-- Postgres-backed control-plane components with tests
+- PostgreSQL-backed control-plane components with tests
 
-### 6. Operator UI foundations
+### 6. Durable persistence backbone
+
+Status: Implemented and archived as foundation work
+
+Covered OpenSpec change:
+
+- `2026-04-22-replace-in-memory-with-postgres-redis`
+
+What exists now:
+
+- PostgreSQL-backed run repository, control-plane store, metering ledger, budget ledger, model catalog, and webhook idempotency storage
+- Redis-backed worker coordination, budget counters, webhook short-window dedupe, provider circuit breaker, and control-plane snapshot invalidation
+- Alembic migrations through `20260422_0008`
+- row-level security helpers and tenant-scoped persistence tests
+- persistence health, migration status, readiness, metrics, alerts, dashboards, and runbooks
+- factory tests that force production adapters when PostgreSQL and Redis are configured
+
+Important limitation:
+
+- development mode still falls back to `InMemory*` adapters when no database URL is configured. That is acceptable for local tests, but a production deployment must provide PostgreSQL and Redis and must not rely on the fallback path.
+
+### 7. Operator UI foundations
 
 Status: Implemented in degraded or foundational form
 
-Covered areas:
+Covered OpenSpec areas:
 
 - `admin-and-monitoring-ui`
 - `visual-graph-editor`
@@ -131,16 +183,20 @@ What exists now:
 - reduced-motion support and accessibility-first interaction baseline
 - read-only graph visualization and validation feedback
 - bundled sprites and English-only localization scaffolding
+- PAT mode banner and GitHub-related UI surface work in progress
 
 Important limitation:
 
-- these UI specs are not yet complete at full production parity; several are intentionally in degraded mode
+- live data is still represented mostly by local sample data
+- graph editing is still read-only
+- sprite upload is still deferred
+- localization is still English-only
 
-### 7. Observability, reliability, and release foundations
+### 8. Observability, reliability, and release foundations
 
 Status: Implemented foundation
 
-Covered areas:
+Covered OpenSpec areas:
 
 - `observability-and-incident-response`
 - `service-level-objectives-and-alerting`
@@ -156,93 +212,131 @@ What exists now:
 - release and rollback policy primitives
 - resilience and retention policy foundations
 - quality gate policy coverage
+- persistence-specific alerts, dashboard, and runbooks
+- public status template
 
-## Macro items that are partially complete but not production-ready
+### 9. Baseline deployment packaging
 
-These areas exist in code, but are not yet complete enough to declare the product production-operational.
+Status: Implemented baseline, not production-complete
 
-### Persistence cutover
+What exists now:
 
-Status: In progress
+- Helm chart files under `helm/`
+- connected, `air_gapped`, staging, and production values files
+- External Secrets Operator templates with LangSmith API key sync from Vault
+- NetworkPolicy template
+- baseline Rollout template and canary step values
+- local development manifests under `k8s/`
+- LangSmith tracing toggle (`langsmith.enabled`) with per-environment project separation; Vault + ESO is the production path, direct `kubectl create secret` is the local path
+- vendor telemetry suppression (`DO_NOT_TRACK=1`, `LANGCHAIN_TRACING_V2=false`) when LangSmith is disabled, preventing PostHog network flush errors in air-gapped deployments
 
-- Postgres and Redis-backed adapters exist
-- the durable budget ledger cutover is now implemented
-- the durable metering ledger cutover is now implemented, including hourly rollups and CSV export from rollups
-- the persistence factory still defaults to in-memory implementations and selectively swaps real adapters by configuration
-- model catalog, provider health, tenant-wide RLS completion, and the remaining production cutovers are still tracked by the open change `replace-in-memory-with-postgres-redis`
+Important limitation:
 
-### Frontend productization
+- the active `air-gapped-deployment-profile`, `progressive-delivery-and-feature-flag-kill-switches`, and `supply-chain-and-admission-controller` changes are still open, so the chart is not yet the fully validated production delivery package described in `docs/PLAN.md`.
 
-Status: In progress
+## Active work with implementation present
 
-- the frontend is functional as an operator shell
-- live data is still represented by local sample data
-- graph editing is still read-only
-- sprite upload is still deferred
-- localization is still English-only
+### GitHub App and PAT onboarding mechanics
 
-### Infrastructure delivery
+Status: Archived as `2026-04-24-github-app-pat-onboarding-mechanics`
 
-Status: Not complete
+What exists:
 
-- the plan requires Helm-based Kubernetes deployment and production workload topology
-- `helm/` is still a scaffold placeholder, so production deployment packaging is not complete
+- GitHub integration modules for permission hashing, least-privilege checks, installation-token minting, drift detection, branch-protection verification, and metrics
+- Alembic migration and schema entries for GitHub App installations, GitHub credentials, PAT opt-ins, and branch-protection verification records
+- runtime branch-protection guard before PR creation
+- PAT credential policy and reduced PAT rate-limit behavior
+- admin router for installation registration, PAT opt-in, and drift acknowledgement
+- frontend PAT mode banner
+- Helm values for GitHub App configuration and Vault-held private key references
+- contract tests under `backend/tests/test_github_integration_contracts.py`
+- runbooks and alert rules for GitHub mint failures and permission drift
 
-## Remaining work required for a 100% production-operational system
+### Optional internal RAG via pgvector
 
-The following work is still required if the goal is full production readiness, not just a runnable repository.
+Status: Implemented and locally validated; open pending customer staging evidence for archive gate
+
+Covered OpenSpec change:
+
+- `optional-internal-rag-via-pgvector`
+
+What exists now:
+
+- `knowledge_documents`, `knowledge_chunks`, and `knowledge_ingestion_jobs` tables with row-level security and HNSW index (Alembic migration `20260424_0009`)
+- `internal_rag_enabled` feature flag registered, default OFF, boot probe for pgvector extension presence
+- admin API CRUD and ingest endpoints at `/api/v1/admin/knowledge/*`
+- background ARQ ingestion jobs with progress metrics and resumability
+- HNSW-indexed retrieval with role whitelist (`planner`, `reviewer` only) and read-only semantics during runs
+- excerpt summaries persisted in run state for audit and reproducibility
+- admin dry-run search endpoint for operators
+- self-hosted embedding endpoint in Helm values; NetworkPolicy denies vendor egress in air-gapped profile
+- LangSmith tracing support via `langsmith.enabled` Helm toggle (Vault + ESO integration, `values-staging.yaml`, `values-prod.yaml`)
+- Prometheus metrics: ingestion progress, retrieval latency p95, hit rate, excerpt size distribution
+- PostHog network flush errors from the `langsmith` transitive dependency suppressed via `DO_NOT_TRACK=1` and `LANGCHAIN_TRACING_V2=false` when LangSmith is disabled
+- runbook covering enablement, rollback, and retention
+- `backend/tests/test_internal_rag_contracts.py` with tenant-scope negative tests and role whitelist enforcement - all passing
+
+Local validation evidence (2026-04-24):
+
+- `/readyz` returns `status: ok` with knowledge capability probe clean
+- all 7 `/api/v1/admin/knowledge/*` endpoints registered and responding correctly
+- document CRUD, ingest (status: completed), and dry-run search (correct hit, distance 0.0) verified
+- tenant isolation: cross-tenant search returns empty hits
+- role whitelist: `coder` role returns `knowledge_retrieval_denied:coder`
+- admin guard: `viewer` role returns `admin_role_required`
+- all 5 Prometheus metric families present with correct tenant and team labels
+
+Bug fixed during validation:
+
+- `persistence/health.py` was marking pods as `not_ready` when `BACKEND_DATABASE_URL` was absent (`state: not_configured`), causing CrashLoopBackOff after image rebuild. Fixed by skipping `database_unhealthy`, `redis_unhealthy`, and `migration_drift` checks when migration state is `not_configured`. All 118 backend tests pass after the fix.
+
+Archive gate:
+
+- task 9.1 blocks archiving until at least one customer enables the flag in staging and produces an evidence bundle
+
+## Remaining work required for full production readiness
+
+The following items block a true production-ready deployment and map to active OpenSpec changes or unresolved plan commitments.
 
 ### Tier 1 production blockers
 
-These items block a true production-ready deployment and map directly to the remaining open OpenSpec changes and unresolved plan commitments.
-
-- Complete `replace-in-memory-with-postgres-redis`
-  - make Postgres and Redis the default operational backbone for runs, control plane, queue behavior, metering, and webhook persistence
-  - remove remaining dependence on in-memory defaults for production paths
-
-- Deliver Kubernetes-native deployment packaging
-  - implement the connected and `air_gapped` Helm charts
-  - validate HPA, probes, resource quotas, sandbox runtime settings, and production topology
-
 - Complete `air-gapped-deployment-profile`
-  - enforce no external LLM egress
+  - enforce no external LLM or telemetry egress
   - validate self-hosted provider routing and deployment constraints
+  - add the canonical runbook and install rehearsal evidence
 
 - Complete `jira-webhook-replay-and-rate-limit-hardening`
-  - finish production webhook replay, abuse, and intake hardening beyond the current foundation
-
-- Complete `github-app-pat-onboarding-mechanics`
-  - production GitHub App onboarding flow
-  - enforce GitHub App as default and PAT as explicit restricted fallback
+  - add replay hardening beyond the current `(source, delivery_id)` idempotency foundation
+  - implement dual-secret rotation, CIDR allowlists, and Redis sliding-window enforcement
 
 - Complete `credential-rotation-sla-and-break-glass`
-  - operationalize 90-day rotation, alerts, and dual-control emergency procedures
+  - operationalize rotation schedules, alerts, dual-control break-glass, and KEK rotation drills
 
 - Complete `supply-chain-and-admission-controller`
-  - SBOM, signing, provenance, and cluster admission enforcement for unsigned artifacts
+  - add SBOM, signing, provenance, vulnerability/license scans, and cluster admission enforcement
 
 - Complete `progressive-delivery-and-feature-flag-kill-switches`
-  - canary rollout, automated rollback, and kill switches for high-risk runtime capabilities
+  - wire Argo Rollouts analysis, automated rollback, OpenFeature integration, and kill-switch drills
 
 - Complete `api-versioning-and-openapi-diff-gate`
-  - formal `/v1` compatibility governance
-  - schema diff gates in CI
+  - formalize `/api/v1` compatibility governance
+  - emit versioned OpenAPI and block breaking changes through CI diff gates
 
 - Complete `data-retention-deletion-and-dpa-compliance`
-  - tenant deletion cascade, retention automation, compliance documentation, and DPA acknowledgment path
+  - implement tenant deletion cascade, retention automation, compliance documentation, and DPA acknowledgement
 
 - Complete `public-status-page-and-incident-runbooks`
-  - public status communication, runbook coverage, and operational incident response maturity
+  - implement status endpoint, status sync, SEV model, paging drill, and runbook linting
 
 - Complete `chaos-fuzz-and-prompt-regression-testing-program`
-  - chaos, fuzz, and prompt regression coverage required by the production test strategy
+  - add chaos, fuzz, and prompt regression coverage required by the production test strategy
 
 ### Tier 2 parity work still missing for full plan completion
 
 These items may have documented degraded paths for GA, but they are still missing if the target is 100% implementation of the plan.
 
 - Complete `billing-rate-card-reconciliation`
-  - hourly rollups, versioned rate cards, export maturity, nightly reconciliation
+  - versioned rate cards, admin editor, nightly reconciliation, drift alerts, and JSON export
 
 - Finish the full visual graph editor experience
   - node, edge, route, and interrupt CRUD
@@ -252,35 +346,37 @@ These items may have documented degraded paths for GA, but they are still missin
   - upload flow, role/state mapping, and persistence beyond bundled assets only
 
 - Finish full pixel-art control-room parity
-  - real-time integration, animation richness, and production-grade polish
+  - real-time integration, richer state mapping, and production-grade polish
 
 - Finish localization parity
   - deliver the Spanish locale and broader localization completeness
 
-### Optional extension still pending
+### Optional extension pending archive gate
 
 - `optional-internal-rag-via-pgvector`
-  - optional capability, not required for minimum production operation
-  - still pending if the product target includes the full optional extension set
+  - implemented and locally validated; all contract tests and Minikube smoke tests green
+  - pending task 9.1: customer staging evidence bundle before archiving
 
 ## Practical production-readiness summary
 
 If the question is "can this repo run meaningful slices today?", the answer is yes.
 
-If the question is "can this system be declared fully production-operational for enterprise self-hosted customers as described in `docs/PLAN.md`?", the answer is no, not yet.
+If the question is "can this system be declared fully production-operational for enterprise self-hosted customers as described in `docs/PLAN.md`?", the answer is no.
 
 At a macro level:
 
-- completed: core runtime, policy, governance, control-plane, and UI foundations
-- partially complete: persistence cutover, frontend productization, operational packaging
-- still required: deployment packaging, production hardening, supply-chain enforcement, progressive delivery, compliance operations, public incident tooling, and the remaining quality program
+- completed foundations: runtime, platform contracts, security contracts, LLM governance, durable persistence, control plane, UI shell, operations policy primitives, GitHub App and PAT onboarding, and optional internal RAG (locally validated)
+- partially complete: frontend productization, production Helm delivery, operational drills, and live deployment evidence
+- still required: air-gapped enforcement, webhook hardening, supply-chain admission, progressive delivery, API diff gates, compliance operations, public incident tooling, and the expanded quality program
 
 ## Current validation snapshot
 
-Recent local validation in this repository showed:
+Validation run during this status update (2026-04-24):
 
-- backend tests passing: 50 passed, 16 skipped
-- frontend tests passing
-- frontend production build passing
+- `uv run --project backend ruff check backend/src backend/tests` - passed
+- `uv run --project backend pytest` - passed, 118 passed, 1 skipped, 0 failed
+- local Minikube smoke tests for `optional-internal-rag-via-pgvector` - all checks passed (see section above)
 
-This supports the conclusion that the codebase is executable and actively advancing, but not yet at full production-operational scope.
+The seven PostgreSQL and Redis persistence test failures that appeared in the previous snapshot are resolved. Those tests were updated as part of the persistence backbone work to run against in-memory adapters when no database URL is present, so they now pass in the standard local test run without requiring a live PostgreSQL or Redis instance.
+
+A separate bug was also fixed in `persistence/health.py` during internal RAG validation: readiness and liveness probes were marking the pod `not_ready` when the migration state was `not_configured` (no DATABASE_URL present), causing CrashLoopBackOff on fresh pod starts. The fix skips `database_unhealthy`, `redis_unhealthy`, and `migration_drift` checks when state is `not_configured`.
