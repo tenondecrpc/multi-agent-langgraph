@@ -38,3 +38,11 @@ github:
 # caused by the langsmith transitive dependency trying to reach vendor analytics endpoints.
 langsmith:
   enabled: false
+
+# Air-gapped deployments do not call an external statuspage provider.
+# Operators use the internal admin UI tile and `/api/v1/status-page` endpoint instead.
+statusPageSync:
+  enabled: false
+
+pagerDuty:
+  enabled: false

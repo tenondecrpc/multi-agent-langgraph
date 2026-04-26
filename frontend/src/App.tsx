@@ -17,6 +17,18 @@ import { t } from "./i18n/messages";
 import { validateGraphCandidate } from "./lib/graphValidation";
 
 type TabKey = "dashboard" | "control-room" | "interrupts" | "graph-editor" | "admin";
+type PublicComponentStatus = "operational" | "degraded" | "partial_outage" | "major_outage";
+type PublicStatusComponent = {
+  component: string;
+  status: PublicComponentStatus;
+  message: string;
+};
+type PublicStatusPage = {
+  schema_version: string;
+  generated_at: string;
+  status: PublicComponentStatus;
+  components: PublicStatusComponent[];
+};
 
 const statusCycle: Record<RunStatus, RunStatus> = {
   planning: "active",
@@ -50,6 +62,10 @@ function statusTone(status: RunStatus): string {
   return `status-pill status-${status}`;
 }
 
+function publicStatusTone(status: PublicComponentStatus): string {
+  return `status-pill status-public-${status}`;
+}
+
 function runStatusLabel(run: RunCard): string {
   return `${run.ticket} is ${run.status} at ${run.agent}`;
 }
@@ -67,6 +83,8 @@ export default function App() {
   const [uploadNotice, setUploadNotice] = useState("");
   const [dryRunNotice, setDryRunNotice] = useState("");
   const [patModeActive, setPatModeActive] = useState(false);
+  const [statusPage, setStatusPage] = useState<PublicStatusPage | null>(null);
+  const [statusPageError, setStatusPageError] = useState("");
 
   const visibleTabs = roleTabs[role];
   const graphValidation = validateGraphCandidate(graphSource);
@@ -96,6 +114,34 @@ export default function App() {
       setTab(visibleTabs[0]);
     }
   }, [tab, visibleTabs]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    async function loadStatusPage() {
+      try {
+        const response = await fetch("/api/v1/status-page", {
+          signal: controller.signal,
+        });
+        if (!response.ok) {
+          throw new Error("status-page-unavailable");
+        }
+        const payload = (await response.json()) as PublicStatusPage;
+        setStatusPage(payload);
+        setStatusPageError("");
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          setStatusPageError(t(locale, "statusPageUnavailable"));
+        }
+      }
+    }
+
+    void loadStatusPage();
+
+    return () => {
+      controller.abort();
+    };
+  }, [locale]);
 
   const pausedRuns = runs.filter((run) => run.status === "paused");
   const dlqRuns = runs.filter((run) => run.status === "dlq");
@@ -415,6 +461,46 @@ export default function App() {
                     <strong>4</strong>
                   </div>
                 </div>
+              </section>
+              <section className="panel">
+                <div className="panel-header">
+                  <h2>{t(locale, "publicStatus")}</h2>
+                  <span className="legend">
+                    {statusPage ? statusPage.schema_version : t(locale, "loading")}
+                  </span>
+                </div>
+                {statusPageError ? (
+                  <p className="notice" role="status">
+                    {statusPageError}
+                  </p>
+                ) : null}
+                {statusPage ? (
+                  <>
+                    <div className="metric-card status-summary" role="status">
+                      <span>{t(locale, "overallStatus")}</span>
+                      <strong className={publicStatusTone(statusPage.status)}>
+                        {statusPage.status.replace("_", " ")}
+                      </strong>
+                    </div>
+                    <div
+                      aria-label="Public status components"
+                      className="status-grid"
+                      role="list"
+                    >
+                      {statusPage.components.map((component) => (
+                        <article className="run-card" key={component.component} role="listitem">
+                          <div className="run-card-top">
+                            <strong>{component.component.replace("_", " ")}</strong>
+                            <span className={publicStatusTone(component.status)}>
+                              {component.status.replace("_", " ")}
+                            </span>
+                          </div>
+                          <p>{component.message}</p>
+                        </article>
+                      ))}
+                    </div>
+                  </>
+                ) : null}
               </section>
               <section className="panel">
                 <div className="panel-header">

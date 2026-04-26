@@ -288,6 +288,26 @@ textarea:focus-visible {
   color: #69f0ae;
 }
 
+.status-public-operational {
+  background: rgba(105, 240, 174, 0.16);
+  color: #69f0ae;
+}
+
+.status-public-degraded {
+  background: rgba(255, 209, 102, 0.18);
+  color: #ffd166;
+}
+
+.status-public-partial_outage,
+.status-public-major_outage {
+  background: rgba(255, 127, 80, 0.2);
+  color: #ff9d77;
+}
+
+.status-summary {
+  margin-bottom: 1rem;
+}
+
 .button-row {
   display: flex;
   flex-wrap: wrap;

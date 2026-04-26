@@ -61,3 +61,10 @@ Migration version, active snapshot id, and adapter readiness SHALL be exposed on
 - **THEN** the UI shows expected vs applied migration version and active snapshot id
 - **AND** it flags drift with an accessible warning that meets the AA contrast and keyboard-reachability non-negotiable subset
 
+### Requirement: Runbook Corpus Is Versioned Alongside Alert Rules
+
+Runbooks SHALL live under `docs/runbooks/` and SHALL be versioned together with the alert rules they accompany. Deleting an alert without deleting or updating its runbook SHALL be blocked by CI.
+
+#### Scenario: Orphaned runbook warns
+- **WHEN** a runbook exists without a referencing alert
+- **THEN** CI raises a warning with the orphan file list

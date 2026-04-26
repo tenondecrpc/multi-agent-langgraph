@@ -1,3 +1,6 @@
 langsmith:
   enabled: true
   project: "langgraph-dev-squad-staging"
+
+pagerDuty:
+  enabled: true

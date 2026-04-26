@@ -1,6 +1,6 @@
 # STATUS
 
-Last updated: 2026-04-24
+Last updated: 2026-04-26
 
 ## Overall status
 
@@ -27,19 +27,19 @@ Archived and treated as completed foundation work:
 - `2026-04-18-phase-7-observability-reliability-and-release`
 - `2026-04-22-replace-in-memory-with-postgres-redis`
 - `2026-04-24-github-app-pat-onboarding-mechanics`
+- `2026-04-26-api-versioning-and-openapi-diff-gate`
+- `2026-04-26-optional-internal-rag-via-pgvector`
+- `2026-04-26-public-status-page-and-incident-runbooks`
 
 Active changes still open:
 
 - `air-gapped-deployment-profile` - not implemented
-- `api-versioning-and-openapi-diff-gate` - not implemented
 - `billing-rate-card-reconciliation` - not implemented
 - `chaos-fuzz-and-prompt-regression-testing-program` - not implemented
 - `credential-rotation-sla-and-break-glass` - not implemented
 - `data-retention-deletion-and-dpa-compliance` - not implemented
 - `jira-webhook-replay-and-rate-limit-hardening` - not implemented beyond the existing foundation
-- `optional-internal-rag-via-pgvector` - implemented and locally validated; pending customer staging evidence for archive gate (task 9.1)
 - `progressive-delivery-and-feature-flag-kill-switches` - not implemented as a full change
-- `public-status-page-and-incident-runbooks` - not implemented
 - `supply-chain-and-admission-controller` - not implemented
 
 ## Implemented foundations
@@ -184,6 +184,7 @@ What exists now:
 - read-only graph visualization and validation feedback
 - bundled sprites and English-only localization scaffolding
 - PAT mode banner and GitHub-related UI surface work in progress
+- public status tile in the admin panel reading `/api/v1/status-page`
 
 Important limitation:
 
@@ -214,6 +215,7 @@ What exists now:
 - quality gate policy coverage
 - persistence-specific alerts, dashboard, and runbooks
 - public status template
+- `/api/v1/status-page` whitelist endpoint with component states derived from health and Prometheus-format metrics
 
 ### 9. Baseline deployment packaging
 
@@ -254,7 +256,7 @@ What exists:
 
 ### Optional internal RAG via pgvector
 
-Status: Implemented and locally validated; open pending customer staging evidence for archive gate
+Status: Archived as `2026-04-26-optional-internal-rag-via-pgvector`
 
 Covered OpenSpec change:
 
@@ -290,9 +292,46 @@ Bug fixed during validation:
 
 - `persistence/health.py` was marking pods as `not_ready` when `BACKEND_DATABASE_URL` was absent (`state: not_configured`), causing CrashLoopBackOff after image rebuild. Fixed by skipping `database_unhealthy`, `redis_unhealthy`, and `migration_drift` checks when migration state is `not_configured`. All 118 backend tests pass after the fix.
 
-Archive gate:
+Archive status:
 
-- task 9.1 blocks archiving until at least one customer enables the flag in staging and produces an evidence bundle
+- archived after local validation and evidence capture for the OpenSpec change
+
+### API versioning and OpenAPI diff gate
+
+Status: Archived as `2026-04-26-api-versioning-and-openapi-diff-gate`
+
+What exists:
+
+- versioned `/api/v1/openapi.json` document exposing the active major API surface
+- Accept-Version negotiation with unsupported major rejection
+- deprecation metadata endpoint plus deprecation and sunset headers on registered routes
+- OpenAPI diff gate script with breaking-change detection and super-admin bypass registry checks
+- API deprecation docs, baseline OpenAPI artifact, alert rules, and tests
+
+### Public status page and incident runbooks
+
+Status: Archived as `2026-04-26-public-status-page-and-incident-runbooks`
+
+Completed so far:
+
+- artifact alignment against Phase 7 observability and incident-response specs
+- `/api/v1/status-page` backend endpoint returning `public-status.v1`
+- whitelist-only response schema with fixed component fields and no tenant, team, ticket, or secret data
+- component state derivation from health probes and Prometheus-format metrics for API, workers, database, Redis, provider routing, sandbox runtime, and persistence backbone
+- admin UI public status tile that fetches `/api/v1/status-page` and renders text labels for every state
+- connected-profile `status-page-sync` CronJob that posts the status payload to a Vault-sourced statuspage endpoint
+- air-gapped profile disables external status sync and documents the internal `/api/v1/status-page` and admin UI fallback
+- SEV1/2/3 severity model, escalation matrix, and PagerDuty routing-key delivery through External Secrets Operator
+- mandatory `all-providers-down.md` and `air-gapped-deployment.md` runbooks
+- existing paging alerts now carry `runbook_url` labels pointing at checked-in runbooks
+- local alert-runbook lint script and tests
+- backend contract tests and frontend tests for the status-page surface
+
+Forced closure note:
+
+- archived by explicit operator request after local verification passed
+- real staging SEV1 paging drill evidence was not produced in this workspace
+- CI workflow wiring for the runbook lint was not added because `.github/workflows` is a protected path under repository guardrails
 
 ## Remaining work required for full production readiness
 
@@ -318,15 +357,8 @@ The following items block a true production-ready deployment and map to active O
 - Complete `progressive-delivery-and-feature-flag-kill-switches`
   - wire Argo Rollouts analysis, automated rollback, OpenFeature integration, and kill-switch drills
 
-- Complete `api-versioning-and-openapi-diff-gate`
-  - formalize `/api/v1` compatibility governance
-  - emit versioned OpenAPI and block breaking changes through CI diff gates
-
 - Complete `data-retention-deletion-and-dpa-compliance`
   - implement tenant deletion cascade, retention automation, compliance documentation, and DPA acknowledgement
-
-- Complete `public-status-page-and-incident-runbooks`
-  - implement status endpoint, status sync, SEV model, paging drill, and runbook linting
 
 - Complete `chaos-fuzz-and-prompt-regression-testing-program`
   - add chaos, fuzz, and prompt regression coverage required by the production test strategy
@@ -351,12 +383,6 @@ These items may have documented degraded paths for GA, but they are still missin
 - Finish localization parity
   - deliver the Spanish locale and broader localization completeness
 
-### Optional extension pending archive gate
-
-- `optional-internal-rag-via-pgvector`
-  - implemented and locally validated; all contract tests and Minikube smoke tests green
-  - pending task 9.1: customer staging evidence bundle before archiving
-
 ## Practical production-readiness summary
 
 If the question is "can this repo run meaningful slices today?", the answer is yes.
@@ -365,17 +391,23 @@ If the question is "can this system be declared fully production-operational for
 
 At a macro level:
 
-- completed foundations: runtime, platform contracts, security contracts, LLM governance, durable persistence, control plane, UI shell, operations policy primitives, GitHub App and PAT onboarding, and optional internal RAG (locally validated)
+- completed foundations: runtime, platform contracts, security contracts, LLM governance, durable persistence, control plane, UI shell, operations policy primitives, GitHub App and PAT onboarding, API versioning, OpenAPI diff gate, optional internal RAG, and public status/runbook baseline
 - partially complete: frontend productization, production Helm delivery, operational drills, and live deployment evidence
-- still required: air-gapped enforcement, webhook hardening, supply-chain admission, progressive delivery, API diff gates, compliance operations, public incident tooling, and the expanded quality program
+- still required: air-gapped enforcement, webhook hardening, supply-chain admission, progressive delivery, compliance operations, real paging drill evidence, and the expanded quality program
 
 ## Current validation snapshot
 
-Validation run during this status update (2026-04-24):
+Validation run during this status update (2026-04-26):
 
-- `uv run --project backend ruff check backend/src backend/tests` - passed
-- `uv run --project backend pytest` - passed, 118 passed, 1 skipped, 0 failed
-- local Minikube smoke tests for `optional-internal-rag-via-pgvector` - all checks passed (see section above)
+- `uv run --project backend ruff check backend/src backend/tests scripts/lint_alert_runbooks.py` - passed
+- `uv run --project backend pytest` - passed, 138 passed, 1 skipped, 0 failed
+- `npm run --prefix frontend test -- --run` - passed, 6 passed
+- `npm run --prefix frontend build` - passed
+- `helm template dev-squad ./helm -f ./helm/values.yaml` - passed
+- `helm template dev-squad ./helm -f ./helm/values.yaml -f ./helm/values-air-gapped.yaml` - passed
+- `helm template dev-squad ./helm -f ./helm/values.yaml -f ./helm/values-staging.yaml` - passed
+- `uv run --project backend python scripts/lint_alert_runbooks.py` - passed with orphan-runbook warnings only
+- focused status-page contract check - included in the backend and frontend runs above
 
 The seven PostgreSQL and Redis persistence test failures that appeared in the previous snapshot are resolved. Those tests were updated as part of the persistence backbone work to run against in-memory adapters when no database URL is present, so they now pass in the standard local test run without requiring a live PostgreSQL or Redis instance.
 

@@ -13,6 +13,7 @@ from .knowledge import (
     build_knowledge_router,
     probe_pgvector_extension,
 )
+from .operations.status_page import PublicStatusPage, PublicStatusPageService
 from .persistence.factory import PersistenceAdapters, build_persistence_adapters
 from .persistence.migrations import MigrationRunner
 from .platform import build_platform_routers
@@ -73,6 +74,7 @@ def create_app(
 
     system_router = APIRouter(tags=["system"])
     runtime_router = APIRouter(prefix="/api/v1/runtime", tags=["runtime"])
+    status_router = APIRouter(prefix="/api/v1", tags=["status"])
 
     @system_router.get("/healthz")
     def healthz(response: Response) -> dict[str, object]:
@@ -112,8 +114,16 @@ def create_app(
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
+    @status_router.get("/status-page", response_model=PublicStatusPage)
+    def status_page() -> PublicStatusPage:
+        return PublicStatusPageService(
+            health=adapters.health,
+            telemetry=adapters.telemetry,
+        ).snapshot()
+
     app.include_router(system_router)
     app.include_router(runtime_router)
+    app.include_router(status_router)
     for router in build_platform_routers(
         worker_controller=adapters.worker_controller,
         webhook_guard=adapters.webhook_guard,

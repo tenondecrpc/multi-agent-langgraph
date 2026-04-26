@@ -7,6 +7,7 @@ groups:
         labels:
           severity: page
           subsystem: github
+          runbook_url: docs/runbooks/github-mint-failure.md
         annotations:
           summary: GitHub installation-token mint failure rate is high
           runbook: docs/runbooks/github-mint-failure.md
@@ -27,6 +28,7 @@ groups:
         labels:
           severity: page
           subsystem: github
+          runbook_url: docs/runbooks/github-permission-drift.md
         annotations:
           summary: GitHub App permission drift detected - mint calls blocked until acknowledged
           runbook: docs/runbooks/github-permission-drift.md

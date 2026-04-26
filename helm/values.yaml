@@ -90,3 +90,27 @@ langsmith:
   vaultProperty: langsmith_api_key
   endpoint: ""
   project: "langgraph-dev-squad"
+
+statusPageSync:
+  enabled: true
+  schedule: "*/5 * * * *"
+  image:
+    repository: curlimages/curl
+    tag: "8.11.1"
+    pullPolicy: IfNotPresent
+  backendUrl: "http://dev-squad-backend:8000/api/v1/status-page"
+  secretName: dev-squad-persistence
+  endpointSecretKey: statuspage-webhook-url
+  vaultProperty: statuspage_webhook_url
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+
+pagerDuty:
+  enabled: false
+  secretName: dev-squad-paging
+  routingKeySecretKey: pagerduty-routing-key
+  vaultProperty: pagerduty_routing_key
+  severityServiceIds:
+    sev1: ""
+    sev2: ""
+    sev3: ""

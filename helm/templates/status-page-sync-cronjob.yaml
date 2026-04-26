@@ -1,0 +1,45 @@
+{{- if .Values.statusPageSync.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: dev-squad-status-page-sync
+  labels:
+    app: dev-squad-status-page-sync
+spec:
+  schedule: {{ .Values.statusPageSync.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: {{ .Values.statusPageSync.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.statusPageSync.failedJobsHistoryLimit }}
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app: dev-squad-status-page-sync
+        spec:
+          restartPolicy: Never
+          serviceAccountName: dev-squad-backend
+          containers:
+            - name: sync
+              image: "{{ .Values.statusPageSync.image.repository }}:{{ .Values.statusPageSync.image.tag }}"
+              imagePullPolicy: {{ .Values.statusPageSync.image.pullPolicy }}
+              env:
+                - name: BACKEND_STATUS_URL
+                  value: {{ .Values.statusPageSync.backendUrl | quote }}
+                - name: STATUSPAGE_ENDPOINT
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.statusPageSync.secretName }}
+                      key: {{ .Values.statusPageSync.endpointSecretKey }}
+              command:
+                - /bin/sh
+                - -ec
+                - |
+                  payload="$(curl -fsS "${BACKEND_STATUS_URL}")"
+                  curl -fsS \
+                    -X POST \
+                    -H "Content-Type: application/json" \
+                    --data "${payload}" \
+                    "${STATUSPAGE_ENDPOINT}"
+{{- end }}
