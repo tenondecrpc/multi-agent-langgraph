@@ -1,0 +1,142 @@
+name: Chaos and Fuzz Nightly
+
+on:
+  schedule:
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+    inputs:
+      cluster_type:
+        description: "Cluster type (kind or k3d)"
+        required: false
+        default: "kind"
+        type: choice
+        options:
+          - kind
+          - k3d
+
+permissions:
+  contents: read
+  security-events: write
+
+env:
+  CHAOS_CLUSTER_TYPE: ${{ github.event.inputs.cluster_type || 'kind' }}
+  CHAOS_CLUSTER_NAME: chaos-nightly-${{ github.run_id }}
+  CHAOS_NAMESPACE: chaos-test
+
+jobs:
+  chaos-suite:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Set up Python
+        uses: setup-python@v5
+        with:
+          python-version-file: backend/.python-version
+
+      - name: Sync backend dependencies
+        run: uv sync --project backend --dev
+
+      - name: Install kind
+        run: |
+          curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.20.0/kind-linux-amd64
+          chmod +x ./kind
+          sudo mv ./kind /usr/local/bin/kind
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.14.0
+
+      - name: Run chaos tests
+        run: |
+          uv run --project backend pytest backend/tests/chaos \
+            -v \
+            -m chaos \
+            --junitxml=chaos-results.xml \
+            --tb=short
+        continue-on-error: true
+
+      - name: Upload chaos test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: chaos-test-results
+          path: chaos-results.xml
+          retention-days: 30
+
+      - name: Cleanup cluster
+        if: always()
+        run: |
+          kind delete cluster --name ${{ env.CHAOS_CLUSTER_NAME }} || true
+
+  fuzz-suite:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Set up Python
+        uses: setup-python@v5
+        with:
+          python-version-file: backend/.python-version
+
+      - name: Sync backend dependencies
+        run: uv sync --project backend --dev
+
+      - name: Run fuzz tests
+        run: |
+          uv run --project backend pytest backend/tests/fuzz \
+            -v \
+            -m fuzz \
+            --junitxml=fuzz-results.xml \
+            --hypothesis-seed=0 \
+            --tb=short
+        continue-on-error: true
+
+      - name: Upload fuzz test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: fuzz-test-results
+          path: fuzz-results.xml
+          retention-days: 30
+
+  report:
+    needs: [chaos-suite, fuzz-suite]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Download chaos results
+        uses: actions/download-artifact@v4
+        with:
+          name: chaos-test-results
+        continue-on-error: true
+
+      - name: Download fuzz results
+        uses: actions/download-artifact@v4
+        with:
+          name: fuzz-test-results
+        continue-on-error: true
+
+      - name: Generate summary
+        run: |
+          echo "## Chaos and Fuzz Nightly Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Run ID:** ${{ github.run_id }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Date:** $(date -u +%Y-%m-%d)" >> $GITHUB_STEP_SUMMARY
+          echo "**Cluster Type:** ${{ env.CHAOS_CLUSTER_TYPE }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Suite | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Chaos | ${{ needs.chaos-suite.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Fuzz | ${{ needs.fuzz-suite.result }} |" >> $GITHUB_STEP_SUMMARY

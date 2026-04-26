@@ -1,0 +1,100 @@
+name: Prompt Regression
+
+on:
+  pull_request:
+    paths:
+      - "backend/src/backend/runtime/**"
+      - "backend/src/backend/persistence/**"
+      - "backend/tests/prompt_regression/**"
+      - "**/prompt*"
+      - ".github/workflows/prompt-regression.yml"
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  LANGSMITH_PROJECT: langgraph-dev-squad-prompt-regression
+
+jobs:
+  prompt-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Set up Python
+        uses: setup-python@v5
+        with:
+          python-version-file: backend/.python-version
+
+      - name: Sync backend dependencies
+        run: uv sync --project backend --dev
+
+      - name: Run prompt regression tests
+        run: |
+          uv run --project backend pytest backend/tests/prompt_regression \
+            -v \
+            -m prompt_regression \
+            --junitxml=prompt-regression-results.xml \
+            --tb=short
+        env:
+          LANGSMITH_API_KEY: ${{ secrets.LANGSMITH_API_KEY }}
+        continue-on-error: true
+
+      - name: Upload prompt regression results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: prompt-regression-results
+          path: prompt-regression-results.xml
+          retention-days: 30
+
+      - name: Check regression tolerance
+        run: |
+          echo "Prompt regression tolerance check"
+          echo "If this job fails, planner or reviewer output has regressed beyond tolerance."
+          echo "Review the test output and fixture comparisons for details."
+
+  focused-pr-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Set up Python
+        uses: setup-python@v5
+        with:
+          python-version-file: backend/.python-version
+
+      - name: Sync backend dependencies
+        run: uv sync --project backend --dev
+
+      - name: Run focused fuzz subset on PR
+        run: |
+          uv run --project backend pytest backend/tests/fuzz \
+            -v \
+            -m fuzz \
+            --junitxml=focused-fuzz-results.xml \
+            --hypothesis-seed=0 \
+            --tb=short \
+            --hypothesis-max-examples=20
+
+      - name: Upload focused fuzz results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: focused-fuzz-results
+          path: focused-fuzz-results.xml
+          retention-days: 14

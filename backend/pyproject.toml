@@ -32,10 +32,18 @@ dev = [
     "httpx>=0.28,<1",
     "pytest>=9,<10",
     "ruff>=0.11,<1",
+    "hypothesis>=6.100,<7",
+    "schemathesis>=4",
 ]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+    "chaos: Chaos scenario tests",
+    "chaos_scenario: Specific chaos scenario marker",
+    "fuzz: Fuzz testing markers",
+    "prompt_regression: Prompt regression tests",
+]
 
 [tool.ruff]
 target-version = "py312"
