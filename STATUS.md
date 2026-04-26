@@ -37,7 +37,6 @@ Archived and treated as completed foundation work:
 Active changes still open:
 
 - `chaos-fuzz-and-prompt-regression-testing-program` - not implemented
-- `credential-rotation-sla-and-break-glass` - not implemented
 - `data-retention-deletion-and-dpa-compliance` - not implemented
 - `progressive-delivery-and-feature-flag-kill-switches` - not implemented as a full change
 
@@ -303,6 +302,7 @@ Status: Implemented
 Covered OpenSpec change:
 
 - `2026-04-26-jira-webhook-replay-and-rate-limit-hardening`
+- `2026-04-26-credential-rotation-sla-and-break-glass`
 
 What exists now:
 
@@ -323,6 +323,33 @@ Important limitation:
 - IP allowlist is stored in environment config; PostgreSQL-backed versioned config store is deferred
 - Load test across multiple replicas requires cluster infrastructure
 - Chaos test for mid-traffic rotation is deferred to the chaos-fuzz change
+
+### 13. Credential rotation SLA and break-glass
+
+Status: Implemented
+
+Covered OpenSpec change:
+
+- `2026-04-26-credential-rotation-sla-and-break-glass`
+
+What exists now:
+
+- `credential_rotation_schedule` table with per-credential SLA tracking and overdue flag (Alembic migration `20260426_0014`)
+- `break_glass_grants` table with dual super_admin approval workflow and time-bounded grants
+- `kek_versions` table for staged KEK rotation with dual-read support
+- EnvelopeCipher dual-read: decrypts ciphertext wrapped by either active or previous KEK
+- Rotation SLA evaluator endpoint at `/api/v1/admin/credentials/rotation-schedule/evaluate`
+- Blocking status check at `/api/v1/admin/credentials/rotation-schedule/blocking-status`
+- Break-glass request/approve/revoke flow at `/api/v1/admin/credentials/break-glass/*`
+- KEK introduce/rotate-default/retire lifecycle at `/api/v1/admin/credentials/kek/*`
+- Prometheus metrics: `devsquad_credential_rotation_overdue_count`, `devsquad_credential_rotation_warning_count`, `devsquad_break_glass_approvals_total`
+- Contract tests under `backend/tests/test_credential_rotation_contracts.py` - 15 tests passing
+
+Important limitation:
+
+- break-glass paging integration is deferred (no PagerDuty webhook yet)
+- quarterly drill Job and `rotate_kek.sh` script are deferred to operational hardening
+- blocking middleware on ticket acceptance is API-level only; not yet wired into the webhook path
 
 ## Active work with implementation present
 
@@ -421,9 +448,6 @@ The following items block a true production-ready deployment and map to active O
 
 ### Tier 1 production blockers
 
-- Complete `credential-rotation-sla-and-break-glass`
-  - operationalize rotation schedules, alerts, dual-control break-glass, and KEK rotation drills
-
 - Complete `progressive-delivery-and-feature-flag-kill-switches`
   - wire Argo Rollouts analysis, automated rollback, OpenFeature integration, and kill-switch drills
 
@@ -458,7 +482,7 @@ If the question is "can this system be declared fully production-operational for
 
 At a macro level:
 
-- completed foundations: runtime, platform contracts, security contracts, LLM governance, durable persistence, control plane, UI shell, operations policy primitives, GitHub App and PAT onboarding, API versioning, OpenAPI diff gate, optional internal RAG, public status/runbook baseline, billing rate-card reconciliation, and webhook replay/rate-limit hardening
+- completed foundations: runtime, platform contracts, security contracts, LLM governance, durable persistence, control plane, UI shell, operations policy primitives, GitHub App and PAT onboarding, API versioning, OpenAPI diff gate, optional internal RAG, public status/runbook baseline, billing rate-card reconciliation, webhook replay/rate-limit hardening, and credential rotation SLA with break-glass
 - partially complete: frontend productization, production Helm delivery, operational drills, and live deployment evidence
 - still required: progressive delivery, compliance operations, real paging drill evidence, and the expanded quality program
 
@@ -467,7 +491,7 @@ At a macro level:
 Validation run during this status update (2026-04-26):
 
 - `uv run --project backend ruff check backend/src backend/tests scripts/lint_alert_runbooks.py` - passed
-- `uv run --project backend pytest` - passed, 174 passed, 1 skipped, 0 failed
+- `uv run --project backend pytest` - passed, 189 passed, 1 skipped, 0 failed
 - `npm run --prefix frontend test -- --run` - passed, 7 passed
 - `npm run --prefix frontend build` - passed
 - `helm template dev-squad ./helm -f ./helm/values.yaml` - passed

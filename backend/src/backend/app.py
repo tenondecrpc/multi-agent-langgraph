@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 from .api_deprecations import ApiDeprecation
 from .api_versioning import ApiVersioningConfig, install_api_versioning
 from .billing import build_billing_router
+from .credentials import build_credential_rotation_router
 from .knowledge import (
     InternalRagSettings,
     KnowledgeRepository,
@@ -149,6 +150,12 @@ def create_app(
         )
     )
     app.include_router(build_webhook_admin_router())
+    if adapters.database.configured:
+        app.include_router(
+            build_credential_rotation_router(
+                database_url=adapters.database.settings.sync_url(),
+            )
+        )
     return app
 
 

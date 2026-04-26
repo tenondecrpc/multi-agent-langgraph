@@ -140,7 +140,81 @@ webhook_rate_limit_rejections = Table(
     Column("delivery_id", String(255), nullable=False),
     Column("remote_addr", String(64), nullable=False),
     Column(
-        "rejected_at",
+        "created_at",
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("now()"),
+    ),
+)
+
+credential_rotation_schedule = Table(
+    "credential_rotation_schedule",
+    metadata,
+    Column("schedule_id", String(64), primary_key=True),
+    Column("tenant_id", String(128), nullable=False),
+    Column("team_id", String(128), nullable=False),
+    Column("credential_kind", String(64), nullable=False),
+    Column("credential_id", String(255), nullable=False),
+    Column("rotated_at", DateTime(timezone=True), nullable=False),
+    Column("next_rotation_due", DateTime(timezone=True), nullable=False),
+    Column("rotation_sla_days", Integer, nullable=False, server_default=text("90")),
+    Column("overdue", Boolean, nullable=False, server_default=text("false")),
+    Column(
+        "created_at",
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("now()"),
+    ),
+    Column(
+        "updated_at",
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("now()"),
+    ),
+    UniqueConstraint("tenant_id", "team_id", "credential_kind", "credential_id", name="uq_credential_rotation_scope"),
+)
+
+break_glass_grants = Table(
+    "break_glass_grants",
+    metadata,
+    Column("grant_id", String(64), primary_key=True),
+    Column("tenant_id", String(128), nullable=False),
+    Column("team_id", String(128), nullable=False),
+    Column("requested_by", String(255), nullable=False),
+    Column("reason", Text, nullable=False),
+    Column("scope", JSONB, nullable=False, server_default=text("'{}'::jsonb")),
+    Column("approved_by_first", String(255), nullable=True),
+    Column("approved_by_second", String(255), nullable=True),
+    Column("granted_at", DateTime(timezone=True), nullable=True),
+    Column("expires_at", DateTime(timezone=True), nullable=False),
+    Column("revoked_at", DateTime(timezone=True), nullable=True),
+    Column("revoked_by", String(255), nullable=True),
+    Column("revoke_reason", Text, nullable=True),
+    Column(
+        "created_at",
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("now()"),
+    ),
+)
+
+kek_versions = Table(
+    "kek_versions",
+    metadata,
+    Column("kek_id", String(64), primary_key=True),
+    Column("kms_ref", String(512), nullable=False),
+    Column("introduced_at", DateTime(timezone=True), nullable=False),
+    Column("retired_at", DateTime(timezone=True), nullable=True),
+    Column("is_default", Boolean, nullable=False, server_default=text("false")),
+    Column("introduced_by", String(255), nullable=False),
+    Column(
+        "metadata",
+        JSONB,
+        nullable=False,
+        server_default=text("'{}'::jsonb"),
+    ),
+    Column(
+        "created_at",
         DateTime(timezone=True),
         nullable=False,
         server_default=text("now()"),
