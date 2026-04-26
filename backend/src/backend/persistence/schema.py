@@ -696,3 +696,38 @@ knowledge_chunks = Table(
     ),
     UniqueConstraint("tenant_id", "document_id", "chunk_index", name="uq_knowledge_chunks_tenant_document_index"),
 )
+
+admission_exceptions = Table(
+    "admission_exceptions",
+    metadata,
+    Column("exception_id", String(64), primary_key=True),
+    Column("tenant_id", String(128), nullable=False),
+    Column("team_id", String(128), nullable=False),
+    Column("policy_name", String(255), nullable=False),
+    Column("image_reference", String(512), nullable=False),
+    Column("rationale", Text, nullable=False),
+    Column("approved_by", String(255), nullable=False),
+    Column("second_approver", String(255), nullable=False),
+    Column("expires_at", DateTime(timezone=True), nullable=False),
+    Column("revoked_at", DateTime(timezone=True), nullable=True),
+    Column("revoked_by", String(255), nullable=True),
+    Column("revoke_reason", Text, nullable=True),
+    Column(
+        "metadata",
+        JSONB,
+        nullable=False,
+        server_default=text("'{}'::jsonb"),
+    ),
+    Column(
+        "created_at",
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("now()"),
+    ),
+    Column(
+        "updated_at",
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("now()"),
+    ),
+)

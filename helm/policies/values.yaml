@@ -1,0 +1,23 @@
+# Default values for dev-squad-policies.
+# This is a YAML-formatted file.
+
+repository:
+  owner: "dev-squad"
+  name: "multi-agent-langgraph"
+
+cosign:
+  rekorURL: "https://rekor.sigstore.dev"
+  fulcioURL: "https://fulcio.sigstore.dev"
+
+admission:
+  signature:
+    enforce: "Audit"
+  provenance:
+    enforce: "Audit"
+  digestPinned:
+    enforce: "Audit"
+  noLatest:
+    enforce: "Audit"
+
+kyverno:
+  install: true

@@ -1,0 +1,29 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-digest-pinned-images
+  annotations:
+    policies.kyverno.io/title: Require Digest-Pinned Images
+    policies.kyverno.io/category: Supply Chain
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/description: >-
+      Container images must reference a specific digest (sha256:...)
+      rather than a mutable tag to ensure reproducible deployments.
+spec:
+  validationFailureAction: {{ .Values.admission.digestPinned.enforce | default "Audit" }}
+  background: false
+  rules:
+    - name: check-image-digest
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      validate:
+        message: "Image must be pinned to a digest (sha256:...), not a mutable tag."
+        pattern:
+          spec:
+            containers:
+              - image: "*@sha256:*"
+            =(initContainers):
+              - image: "*@sha256:*"

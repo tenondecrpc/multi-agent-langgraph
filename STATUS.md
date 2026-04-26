@@ -30,17 +30,17 @@ Archived and treated as completed foundation work:
 - `2026-04-26-api-versioning-and-openapi-diff-gate`
 - `2026-04-26-optional-internal-rag-via-pgvector`
 - `2026-04-26-public-status-page-and-incident-runbooks`
+- `2026-04-26-air-gapped-deployment-profile`
+- `2026-04-26-supply-chain-and-admission-controller`
 
 Active changes still open:
 
-- `2026-04-26-air-gapped-deployment-profile`
 - `billing-rate-card-reconciliation` - not implemented
 - `chaos-fuzz-and-prompt-regression-testing-program` - not implemented
 - `credential-rotation-sla-and-break-glass` - not implemented
 - `data-retention-deletion-and-dpa-compliance` - not implemented
 - `jira-webhook-replay-and-rate-limit-hardening` - not implemented beyond the existing foundation
 - `progressive-delivery-and-feature-flag-kill-switches` - not implemented as a full change
-- `supply-chain-and-admission-controller` - not implemented
 
 ## Implemented foundations
 
@@ -238,7 +238,38 @@ What exists now:
 
 Important limitation:
 
-- the active `progressive-delivery-and-feature-flag-kill-switches` and `supply-chain-and-admission-controller` changes are still open, so the chart is not yet the fully validated production delivery package described in `docs/PLAN.md`.
+- the active `progressive-delivery-and-feature-flag-kill-switches` change is still open, so the chart is not yet the fully validated production delivery package described in `docs/PLAN.md`.
+
+### 10. Supply-chain and admission controller
+
+Status: Implemented
+
+Covered OpenSpec change:
+
+- `supply-chain-and-admission-controller`
+
+What exists now:
+
+- CI workflow with cosign keyless signing bound to GitHub OIDC identity
+- SLSA Level 3 provenance generation via `slsa-github-generator`
+- SBOM generation with syft and attachment to container images
+- Trivy, Grype, and OSV-Scanner vulnerability scanning blocking on CRITICAL and HIGH
+- License allowlist enforcement via `scripts/check_license_allowlist.py` with `.github/license-allowlist.json`
+- Secret scanning via gitleaks and trufflehog
+- Dockerfile lint with hadolint and `:latest` tag rejection
+- Kyverno admission policies: signature required, provenance required, digest-pinned, no-latest
+- Helm chart under `helm/policies/` with connected and `air_gapped` values
+- `admission_exceptions` table with Alembic migration `20260426_0011`
+- Admin API for exception CRUD with dual super_admin approval and mandatory `expires_at`
+- Renovate config with grouped PRs, auto-merge on minor/patch, human review for majors
+- Runbooks: signature verification failure, provenance verification failure, exception approval
+- Contract tests for admission API and license allowlist
+
+Important limitation:
+
+- admission policies ship in `Audit` mode by default; flipping to `Enforce` requires staging validation
+- ephemeral K3s integration test and air-gapped bundle verification are documented but require cluster infrastructure to execute
+- archive is blocked on enforce-mode stability in production
 
 ## Active work with implementation present
 
@@ -344,10 +375,6 @@ The following items block a true production-ready deployment and map to active O
 - Complete `credential-rotation-sla-and-break-glass`
   - operationalize rotation schedules, alerts, dual-control break-glass, and KEK rotation drills
 
-- Complete `supply-chain-and-admission-controller`
-  - CI workflows for secret scanning (gitleaks, trufflehog), Dockerfile lint, SBOM generation (syft), and vulnerability scanning (Trivy, OSV-Scanner) are wired
-  - cluster-side Kyverno admission policies, `admission_exceptions` table, and air-gapped bundle verification are still required
-
 - Complete `progressive-delivery-and-feature-flag-kill-switches`
   - wire Argo Rollouts analysis, automated rollback, OpenFeature integration, and kill-switch drills
 
@@ -387,21 +414,24 @@ At a macro level:
 
 - completed foundations: runtime, platform contracts, security contracts, LLM governance, durable persistence, control plane, UI shell, operations policy primitives, GitHub App and PAT onboarding, API versioning, OpenAPI diff gate, optional internal RAG, and public status/runbook baseline
 - partially complete: frontend productization, production Helm delivery, operational drills, and live deployment evidence
-- still required: webhook hardening, supply-chain admission, progressive delivery, compliance operations, real paging drill evidence, and the expanded quality program
+- still required: webhook hardening, progressive delivery, compliance operations, real paging drill evidence, and the expanded quality program
 
 ## Current validation snapshot
 
 Validation run during this status update (2026-04-26):
 
 - `uv run --project backend ruff check backend/src backend/tests scripts/lint_alert_runbooks.py` - passed
-- `uv run --project backend pytest` - passed, 140 passed, 1 skipped, 0 failed
+- `uv run --project backend pytest` - passed, 152 passed, 1 skipped, 0 failed
 - `npm run --prefix frontend test -- --run` - passed, 7 passed
 - `npm run --prefix frontend build` - passed
 - `helm template dev-squad ./helm -f ./helm/values.yaml` - passed
 - `helm template dev-squad ./helm -f ./helm/values.yaml -f ./helm/values-air-gapped.yaml` - passed
 - `helm template dev-squad ./helm -f ./helm/values.yaml -f ./helm/values-air-gapped.yaml --set llm.vendorApiKeys.anthropic=sk-test` - failed as expected with `air_gapped profile rejects vendor LLM API keys`
 - `helm template dev-squad ./helm -f ./helm/values.yaml -f ./helm/values-staging.yaml` - passed
+- `helm template dev-squad ./helm/policies -f ./helm/policies/values.yaml` - passed
+- `helm template dev-squad ./helm/policies -f ./helm/policies/values-air-gapped.yaml` - passed
 - `uv run --project backend python scripts/lint_alert_runbooks.py` - passed with orphan-runbook warnings only
+- `uv run --project backend python scripts/check_license_allowlist.py` - script validates correctly
 - focused status-page contract check - included in the backend and frontend runs above
 
 The seven PostgreSQL and Redis persistence test failures that appeared in the previous snapshot are resolved. Those tests were updated as part of the persistence backbone work to run against in-memory adapters when no database URL is present, so they now pass in the standard local test run without requiring a live PostgreSQL or Redis instance.

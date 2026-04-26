@@ -1,0 +1,19 @@
+# Air-gapped profile: uses internal Sigstore mirrors.
+# No vendor endpoints are reachable.
+
+cosign:
+  rekorURL: "https://rekor.internal.sigstore.svc.cluster.local"
+  fulcioURL: "https://fulcio.internal.sigstore.svc.cluster.local"
+
+admission:
+  signature:
+    enforce: "Audit"
+  provenance:
+    enforce: "Audit"
+  digestPinned:
+    enforce: "Audit"
+  noLatest:
+    enforce: "Audit"
+
+kyverno:
+  install: true

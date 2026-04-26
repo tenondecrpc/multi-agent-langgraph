@@ -138,6 +138,9 @@ def create_app(
             telemetry=adapters.telemetry,
         )
     )
+    from .supply_chain.admission import build_admission_router
+
+    app.include_router(build_admission_router())
     return app
 
 

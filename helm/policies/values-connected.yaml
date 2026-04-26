@@ -1,0 +1,15 @@
+# Connected profile: uses public Sigstore infrastructure.
+
+cosign:
+  rekorURL: "https://rekor.sigstore.dev"
+  fulcioURL: "https://fulcio.sigstore.dev"
+
+admission:
+  signature:
+    enforce: "Audit"
+  provenance:
+    enforce: "Audit"
+  digestPinned:
+    enforce: "Audit"
+  noLatest:
+    enforce: "Audit"

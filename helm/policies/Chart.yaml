@@ -1,0 +1,16 @@
+apiVersion: v2
+name: dev-squad-policies
+description: Kyverno admission policies for LangGraph Dev Squad supply-chain enforcement
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - kyverno
+  - supply-chain
+  - admission
+  - cosign
+  - slsa
+sources:
+  - https://github.com/dev-squad/multi-agent-langgraph
+maintainers:
+  - name: dev-squad

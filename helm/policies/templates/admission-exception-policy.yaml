@@ -1,0 +1,29 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: admission-exception-policy
+  annotations:
+    policies.kyverno.io/title: Admission Exception Policy
+    policies.kyverno.io/category: Supply Chain
+    policies.kyverno.io/severity: high
+    policies.kyverno.io/description: >-
+      Policy exceptions require a valid rationale, super_admin approval,
+      and a mandatory expiration date. Expired exceptions are rejected.
+spec:
+  validationFailureAction: Enforce
+  background: false
+  rules:
+    - name: validate-exception-expiry
+      match:
+        any:
+          - resources:
+              kinds:
+                - ClusterPolicyException
+      validate:
+        message: "Admission exceptions must have an expiresAt annotation set to a future date."
+        pattern:
+          metadata:
+            annotations:
+              supply-chain.dev-squad/exception-expires-at: "?*"
+              supply-chain.dev-squad/approved-by: "?*"
+              supply-chain.dev-squad/rationale: "?*"

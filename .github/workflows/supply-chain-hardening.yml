@@ -16,6 +16,8 @@ on:
 permissions:
   contents: read
   security-events: write
+  id-token: write
+  packages: write
 
 jobs:
   secret-scan:
@@ -81,7 +83,7 @@ jobs:
         uses: astral-sh/setup-uv@v5
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: setup-python@v5
         with:
           python-version-file: backend/.python-version
 
@@ -100,7 +102,7 @@ jobs:
         with:
           name: backend-sbom
           path: backend-sbom.spdx.json
-          retention-days: 30
+          retention-days: 90
 
       - name: Run Trivy vulnerability scanner on backend
         uses: aquasecurity/trivy-action@master
@@ -110,6 +112,7 @@ jobs:
           format: sarif
           output: trivy-backend-results.sarif
           severity: CRITICAL,HIGH
+          exit-code: "1"
 
       - name: Upload Trivy scan results
         uses: github/codeql-action/upload-sarif@v3
@@ -131,7 +134,7 @@ jobs:
         with:
           name: osv-scanner-backend-results
           path: osv-backend-results.sarif
-          retention-days: 30
+          retention-days: 90
 
   frontend-scan:
     runs-on: ubuntu-latest
@@ -159,7 +162,7 @@ jobs:
         with:
           name: frontend-sbom
           path: frontend-sbom.spdx.json
-          retention-days: 30
+          retention-days: 90
 
       - name: Run Trivy vulnerability scanner on frontend
         uses: aquasecurity/trivy-action@master
@@ -169,9 +172,131 @@ jobs:
           format: sarif
           output: trivy-frontend-results.sarif
           severity: CRITICAL,HIGH
+          exit-code: "1"
 
       - name: Upload Trivy scan results
         uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
           sarif_file: trivy-frontend-results.sarif
+
+  license-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: backend/.python-version
+
+      - name: Sync backend dependencies
+        run: uv sync --project backend --dev
+
+      - name: Check Python license compliance
+        run: |
+          uv run --project backend pip-licenses \
+            --format=json \
+            --output-file=backend-licenses.json \
+            --with-authors \
+            --with-urls
+        continue-on-error: true
+
+      - name: Validate license allowlist
+        run: |
+          python scripts/check_license_allowlist.py backend-licenses.json .github/license-allowlist.json
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: frontend/.nvmrc
+
+      - name: Install frontend dependencies
+        run: npm ci --prefix frontend
+
+      - name: Check frontend license compliance
+        run: |
+          npx --prefix frontend license-checker \
+            --json \
+            --out frontend-licenses.json \
+            --start frontend
+
+      - name: Validate frontend license allowlist
+        run: |
+          python scripts/check_license_allowlist.py frontend-licenses.json .github/license-allowlist.json
+
+  image-signing:
+    needs: [secret-scan, dockerfile-lint, sbom-and-scan, frontend-scan, license-check]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Build backend image
+        run: |
+          IMAGE_TAG="ghcr.io/${{ github.repository }}/backend:${{ github.sha }}"
+          docker build -t "$IMAGE_TAG" -f backend/Dockerfile backend/
+          echo "BACKEND_IMAGE=$IMAGE_TAG" >> "$GITHUB_ENV"
+
+      - name: Sign backend image with cosign keyless
+        run: |
+          cosign sign --yes "$BACKEND_IMAGE"
+
+      - name: Generate SLSA Level 3 provenance for backend
+        uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2
+        with:
+          image: "$BACKEND_IMAGE"
+          registry-username: ${{ github.actor }}
+        permissions:
+          id-token: write
+          packages: write
+          actions: read
+
+      - name: Attach SBOM to backend image
+        run: |
+          cosign attach sbom "$BACKEND_IMAGE" \
+            --sbom backend-sbom.spdx.json \
+            --sbom-type spdxjson
+
+      - name: Build frontend image
+        run: |
+          IMAGE_TAG="ghcr.io/${{ github.repository }}/frontend:${{ github.sha }}"
+          docker build -t "$IMAGE_TAG" -f frontend/Dockerfile frontend/
+          echo "FRONTEND_IMAGE=$IMAGE_TAG" >> "$GITHUB_ENV"
+
+      - name: Sign frontend image with cosign keyless
+        run: |
+          cosign sign --yes "$FRONTEND_IMAGE"
+
+      - name: Generate SLSA Level 3 provenance for frontend
+        uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2
+        with:
+          image: "$FRONTEND_IMAGE"
+          registry-username: ${{ github.actor }}
+        permissions:
+          id-token: write
+          packages: write
+          actions: read
+
+      - name: Attach SBOM to frontend image
+        run: |
+          cosign attach sbom "$FRONTEND_IMAGE" \
+            --sbom frontend-sbom.spdx.json \
+            --sbom-type spdxjson
+
+      - name: Upload signing evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: signing-evidence
+          path: |
+            backend-sbom.spdx.json
+            frontend-sbom.spdx.json
+          retention-days: 90

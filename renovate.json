@@ -1,0 +1,92 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":dependencyDashboard",
+    ":semanticCommits",
+    ":automergeDigest",
+    ":pinVersions"
+  ],
+  "labels": ["dependencies"],
+  "prConcurrentLimit": 10,
+  "prHourlyLimit": 2,
+  "rangeStrategy": "pin",
+  "separateMajorMinor": true,
+  "separateMultipleMajor": true,
+  "automerge": false,
+  "automergeType": "pr",
+  "platformAutomerge": true,
+  "packageRules": [
+    {
+      "groupName": "Python dependencies (minor and patch)",
+      "matchManagers": ["pip_requirements", "pip_setup", "pep621"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "automerge": true,
+      "automergeType": "branch",
+      "schedule": ["before 5am on monday"],
+      "groupSlug": "python-minor-patch"
+    },
+    {
+      "groupName": "Python dependencies (major)",
+      "matchManagers": ["pip_requirements", "pip_setup", "pep621"],
+      "matchUpdateTypes": ["major"],
+      "automerge": false,
+      "labels": ["dependencies", "major-update"],
+      "reviewers": ["team:backend"]
+    },
+    {
+      "groupName": "Node.js dependencies (minor and patch)",
+      "matchManagers": ["npm"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "automerge": true,
+      "automergeType": "branch",
+      "schedule": ["before 5am on monday"],
+      "groupSlug": "node-minor-patch"
+    },
+    {
+      "groupName": "Node.js dependencies (major)",
+      "matchManagers": ["npm"],
+      "matchUpdateTypes": ["major"],
+      "automerge": false,
+      "labels": ["dependencies", "major-update"],
+      "reviewers": ["team:frontend"]
+    },
+    {
+      "groupName": "GitHub Actions",
+      "matchManagers": ["github-actions"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "automerge": true,
+      "automergeType": "branch",
+      "groupSlug": "github-actions"
+    },
+    {
+      "groupName": "Helm dependencies",
+      "matchManagers": ["helmv3"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "automerge": true,
+      "automergeType": "branch",
+      "groupSlug": "helm"
+    },
+    {
+      "groupName": "Docker base images",
+      "matchDatasources": ["docker"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "automerge": true,
+      "automergeType": "branch",
+      "pinDigests": true,
+      "groupSlug": "docker-base-images"
+    },
+    {
+      "matchUpdateTypes": ["major"],
+      "automerge": false,
+      "labels": ["dependencies", "major-update"],
+      "reviewers": ["team:platform"]
+    }
+  ],
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "labels": ["security", "vulnerability"],
+    "automerge": false
+  },
+  "osvVulnerabilityAlerts": true
+}
