@@ -19,6 +19,7 @@ from .persistence.factory import PersistenceAdapters, build_persistence_adapters
 from .persistence.migrations import MigrationRunner
 from .platform import build_platform_routers
 from .runtime import ExecutionRequest, PlanningRequest, RuntimeWorkflow, TicketRunState
+from .webhook import build_webhook_admin_router
 
 
 class RuntimeSimulationRequest(BaseModel):
@@ -147,6 +148,7 @@ def create_app(
             metering_ledger=adapters.metering_ledger,
         )
     )
+    app.include_router(build_webhook_admin_router())
     return app
 
 

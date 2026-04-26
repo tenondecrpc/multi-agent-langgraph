@@ -1,14 +1,17 @@
 from __future__ import annotations
 
+import hashlib
 import hmac
+import ipaddress
 import logging
 import os
+from datetime import UTC, datetime
 from typing import Literal
 
 from pydantic import BaseModel
 from redis import Redis
 from redis.exceptions import RedisError
-from sqlalchemy import Engine, create_engine, insert, text
+from sqlalchemy import Engine, create_engine, insert, select, text
 from sqlalchemy.exc import IntegrityError
 
 from backend.persistence.testing.security import InMemoryWebhookGuard
@@ -16,7 +19,11 @@ from backend.security.webhook import WebhookGuardResult, WebhookRequest
 
 from .db import tenant_guc_values
 from .redis import RedisSettings, build_redis_client
-from .schema import webhook_idempotency_records
+from .schema import (
+    webhook_idempotency_records,
+    webhook_rate_limit_rejections,
+    webhook_secret_rotations,
+)
 from .telemetry import PersistenceTelemetry, bootstrap_telemetry
 
 WEBHOOK_GUARD_MODE_ENV_KEY = "BACKEND_WEBHOOK_GUARD_MODE"
@@ -26,6 +33,23 @@ WEBHOOK_SHARED_SECRET_ENV_KEYS = (
 )
 WEBHOOK_FRESHNESS_WINDOW_ENV_KEY = "BACKEND_WEBHOOK_FRESHNESS_WINDOW_SECONDS"
 WEBHOOK_PER_MINUTE_LIMIT_ENV_KEY = "BACKEND_WEBHOOK_PER_MINUTE_LIMIT"
+WEBHOOK_PER_TICKET_FLOOD_LIMIT_ENV_KEY = "BACKEND_WEBHOOK_PER_TICKET_FLOOD_LIMIT"
+WEBHOOK_ROTATION_OVERLAP_HOURS_ENV_KEY = "BACKEND_WEBHOOK_ROTATION_OVERLAP_HOURS"
+
+_SLIDING_WINDOW_SCRIPT = """
+local key = KEYS[1]
+local now = tonumber(ARGV[1])
+local window = tonumber(ARGV[2])
+local limit = tonumber(ARGV[3])
+redis.call('ZREMRANGEBYSCORE', key, '-inf', now - window)
+local count = redis.call('ZCARD', key)
+if count >= limit then
+    return 1
+end
+redis.call('ZADD', key, now, now .. ':' .. math.random(1000000))
+redis.call('EXPIRE', key, window + 10)
+return 0
+"""
 
 
 class WebhookGuardSettings(BaseModel):
@@ -33,6 +57,9 @@ class WebhookGuardSettings(BaseModel):
     secret: str = "development-shared-secret"
     freshness_window_seconds: int = 300
     per_minute_limit: int = 3
+    per_ticket_flood_limit: int = 20
+    rotation_overlap_hours: int = 24
+    ip_allowlist: list[str] = []
 
     @classmethod
     def from_env(cls) -> WebhookGuardSettings:
@@ -41,6 +68,8 @@ class WebhookGuardSettings(BaseModel):
             secret=_first_env(WEBHOOK_SHARED_SECRET_ENV_KEYS, "development-shared-secret"),
             freshness_window_seconds=_int_env(WEBHOOK_FRESHNESS_WINDOW_ENV_KEY, 300),
             per_minute_limit=_int_env(WEBHOOK_PER_MINUTE_LIMIT_ENV_KEY, 3),
+            per_ticket_flood_limit=_int_env(WEBHOOK_PER_TICKET_FLOOD_LIMIT_ENV_KEY, 20),
+            rotation_overlap_hours=_int_env(WEBHOOK_ROTATION_OVERLAP_HOURS_ENV_KEY, 24),
         )
 
 
@@ -60,6 +89,7 @@ class SqlAlchemyWebhookIdempotencyStore:
         request: WebhookRequest,
         *,
         disposition_status: str,
+        signature_hash: str | None = None,
     ) -> bool:
         with self._telemetry.trace(
             "webhook_idempotency_insert_delivery",
@@ -75,6 +105,7 @@ class SqlAlchemyWebhookIdempotencyStore:
                 team_id=request.team_id,
                 endpoint=request.endpoint,
                 hmac_digest=request.signature,
+                signature_hash=signature_hash,
                 disposition_status=disposition_status,
             )
 
@@ -96,6 +127,65 @@ class SqlAlchemyWebhookIdempotencyStore:
 
             return True
 
+    def get_latest_rotation(self, tenant_id: str, team_id: str) -> dict | None:
+        with self._engine.begin() as connection:
+            row = connection.execute(
+                select(webhook_secret_rotations)
+                .where(webhook_secret_rotations.c.tenant_id == tenant_id)
+                .where(webhook_secret_rotations.c.team_id == team_id)
+                .order_by(webhook_secret_rotations.c.created_at.desc())
+                .limit(1)
+            ).mappings().first()
+        return dict(row) if row else None
+
+    def record_rotation(
+        self,
+        tenant_id: str,
+        team_id: str,
+        *,
+        rotation_id: str,
+        previous_secret_hash: str | None,
+        rotation_overlap_until: datetime | None,
+        rotated_by: str,
+        metadata: dict | None = None,
+    ) -> None:
+        with self._engine.begin() as connection:
+            connection.execute(
+                webhook_secret_rotations.insert().values(
+                    rotation_id=rotation_id,
+                    tenant_id=tenant_id,
+                    team_id=team_id,
+                    previous_secret_hash=previous_secret_hash,
+                    rotation_overlap_until=rotation_overlap_until,
+                    rotated_by=rotated_by,
+                    metadata=metadata or {},
+                )
+            )
+
+    def record_rate_limit_rejection(
+        self,
+        tenant_id: str,
+        team_id: str,
+        ticket_key: str,
+        source: str,
+        delivery_id: str,
+        remote_addr: str,
+    ) -> None:
+        import uuid
+
+        with self._engine.begin() as connection:
+            connection.execute(
+                webhook_rate_limit_rejections.insert().values(
+                    rejection_id=str(uuid.uuid4()),
+                    tenant_id=tenant_id,
+                    team_id=team_id,
+                    ticket_key=ticket_key,
+                    source=source,
+                    delivery_id=delivery_id,
+                    remote_addr=remote_addr,
+                )
+            )
+
 
 class RedisWebhookDedupeCache:
     def __init__(
@@ -115,6 +205,20 @@ class RedisWebhookDedupeCache:
     def remember(self, key: str, *, ttl_seconds: int) -> None:
         self._client.set(key, "1", ex=ttl_seconds)
 
+    def check_sliding_window(self, key: str, now: int, window: int, limit: int) -> bool:
+        try:
+            result = self._client.eval(
+                _SLIDING_WINDOW_SCRIPT,
+                1,
+                key,
+                now,
+                window,
+                limit,
+            )
+            return bool(int(result))
+        except (RedisError, ValueError, TypeError):
+            return False
+
 
 class PostgresRedisWebhookGuard:
     def __init__(
@@ -125,14 +229,24 @@ class PostgresRedisWebhookGuard:
         dedupe_cache: RedisWebhookDedupeCache,
         freshness_window_seconds: int = 300,
         per_minute_limit: int = 3,
+        per_ticket_flood_limit: int = 20,
+        rotation_overlap_hours: int = 24,
+        ip_allowlist: list[str] | None = None,
+        previous_secret: str | None = None,
+        rotation_overlap_until: datetime | None = None,
         logger: logging.Logger | None = None,
         telemetry: PersistenceTelemetry | None = None,
     ) -> None:
         self.secret = secret.encode("utf-8")
+        self.previous_secret = previous_secret.encode("utf-8") if previous_secret else None
         self.record_store = record_store
         self.dedupe_cache = dedupe_cache
         self.freshness_window_seconds = freshness_window_seconds
         self.per_minute_limit = per_minute_limit
+        self.per_ticket_flood_limit = per_ticket_flood_limit
+        self.rotation_overlap_hours = rotation_overlap_hours
+        self.rotation_overlap_until = rotation_overlap_until
+        self.ip_allowlist = [ipaddress.ip_network(cidr) for cidr in (ip_allowlist or [])]
         self.logger = logger or logging.getLogger(__name__)
         self._telemetry = telemetry or bootstrap_telemetry()
         self._request_windows: dict[tuple[str, str], list[int]] = {}
@@ -145,19 +259,43 @@ class PostgresRedisWebhookGuard:
             tenant_id=request.tenant_id,
             team_id=request.team_id,
         ):
+            if self.ip_allowlist:
+                if not self._ip_allowed(request.remote_addr):
+                    self._log_ip_rejection(request.remote_addr)
+                    return WebhookGuardResult(accepted=False, rejection_reason="ip_not_allowed")
+
             request_signature = _normalise_signature(request.signature)
-            expected_signature = self.sign(request.body, request.timestamp)
-            if not hmac.compare_digest(expected_signature, request_signature):
+            signature_hash = hashlib.sha256(request.body.encode()).hexdigest()
+
+            accepted, matched_previous = self._verify_signature(
+                request.body, request.timestamp, request_signature,
+            )
+            if not accepted:
                 return WebhookGuardResult(accepted=False, rejection_reason="invalid_signature")
+
+            if matched_previous:
+                self._telemetry.increment("devsquad_webhook_signature_matched_previous_total")
 
             if now - request.timestamp > self.freshness_window_seconds:
                 return WebhookGuardResult(accepted=False, rejection_reason="stale_timestamp")
+
+            if self._check_ticket_flood(request, now=now):
+                self.record_store.record_rate_limit_rejection(
+                    tenant_id=request.tenant_id,
+                    team_id=request.team_id,
+                    ticket_key=request.ticket_key,
+                    source=request.source,
+                    delivery_id=request.event_id,
+                    remote_addr=request.remote_addr,
+                )
+                self._telemetry.increment("devsquad_webhook_rate_limit_rejections_total")
+                return WebhookGuardResult(accepted=False, rejection_reason="rate_limited")
 
             if self._rate_limited(request, now=now):
                 return WebhookGuardResult(accepted=False, rejection_reason="rate_limited")
 
             normalized_request = request.model_copy(update={"signature": request_signature})
-            idempotency_key = _idempotency_key(normalized_request)
+            idempotency_key = _idempotency_key(normalized_request, signature_hash)
             if self._cache_seen(idempotency_key):
                 self._telemetry.increment("devsquad_webhook_dedupe_hits_total")
                 return WebhookGuardResult(
@@ -169,6 +307,7 @@ class PostgresRedisWebhookGuard:
             inserted = self.record_store.insert_delivery(
                 normalized_request,
                 disposition_status="accepted",
+                signature_hash=signature_hash,
             )
             if not inserted:
                 self._telemetry.increment("devsquad_webhook_dedupe_hits_total")
@@ -191,6 +330,41 @@ class PostgresRedisWebhookGuard:
             payload = f"{timestamp}.{body}".encode()
             return hmac.new(self.secret, payload, "sha256").hexdigest()
 
+    def _verify_signature(
+        self,
+        body: str,
+        timestamp: int,
+        request_signature: str,
+    ) -> tuple[bool, bool]:
+        expected_signature = self._compute_signature(body, timestamp, self.secret)
+        if hmac.compare_digest(expected_signature, request_signature):
+            return True, False
+
+        if self.previous_secret and self._is_within_overlap():
+            previous_signature = self._compute_signature(body, timestamp, self.previous_secret)
+            if hmac.compare_digest(previous_signature, request_signature):
+                return True, True
+
+        return False, False
+
+    def _compute_signature(self, body: str, timestamp: int, secret: bytes) -> str:
+        payload = f"{timestamp}.{body}".encode()
+        return hmac.new(secret, payload, "sha256").hexdigest()
+
+    def _is_within_overlap(self) -> bool:
+        if self.rotation_overlap_until is None:
+            return False
+        return datetime.now(tz=UTC) <= self.rotation_overlap_until
+
+    def _check_ticket_flood(self, request: WebhookRequest, *, now: int) -> bool:
+        flood_key = f"webhook:flood:{request.tenant_id}:{request.ticket_key}"
+        return self.dedupe_cache.check_sliding_window(
+            flood_key,
+            now=now,
+            window=60,
+            limit=self.per_ticket_flood_limit,
+        )
+
     def _rate_limited(self, request: WebhookRequest, *, now: int) -> bool:
         bucket_key = (request.endpoint, request.remote_addr)
         request_times = [
@@ -205,6 +379,19 @@ class PostgresRedisWebhookGuard:
         request_times.append(now)
         self._request_windows[bucket_key] = request_times
         return False
+
+    def _ip_allowed(self, remote_addr: str) -> bool:
+        try:
+            addr = ipaddress.ip_address(remote_addr)
+        except ValueError:
+            return False
+        return any(addr in network for network in self.ip_allowlist)
+
+    def _log_ip_rejection(self, remote_addr: str) -> None:
+        self.logger.warning(
+            "webhook_ip_not_allowed",
+            extra={"remote_addr": remote_addr, "subsystem": "webhook_guard"},
+        )
 
     def _cache_seen(self, idempotency_key: str) -> bool:
         try:
@@ -294,12 +481,29 @@ def build_webhook_guard(
     if not redis_settings.configured:
         raise RuntimeError("BACKEND_WEBHOOK_GUARD_MODE requires a configured Redis URL")
 
+    record_store = SqlAlchemyWebhookIdempotencyStore(database_url, telemetry=telemetry)
+    try:
+        rotation = record_store.get_latest_rotation("default", "default")
+    except Exception:
+        rotation = None
+    previous_secret = None
+    rotation_overlap_until = None
+    if rotation and rotation.get("rotation_overlap_until"):
+        rotation_overlap_until = rotation["rotation_overlap_until"]
+        if rotation_overlap_until > datetime.now(tz=UTC):
+            previous_secret = rotation.get("previous_secret_hash")
+
     candidate_guard = PostgresRedisWebhookGuard(
         secret=resolved_settings.secret,
-        record_store=SqlAlchemyWebhookIdempotencyStore(database_url, telemetry=telemetry),
+        record_store=record_store,
         dedupe_cache=RedisWebhookDedupeCache(redis_settings=redis_settings),
         freshness_window_seconds=resolved_settings.freshness_window_seconds,
         per_minute_limit=resolved_settings.per_minute_limit,
+        per_ticket_flood_limit=resolved_settings.per_ticket_flood_limit,
+        rotation_overlap_hours=resolved_settings.rotation_overlap_hours,
+        ip_allowlist=resolved_settings.ip_allowlist,
+        previous_secret=previous_secret,
+        rotation_overlap_until=rotation_overlap_until,
         logger=resolved_logger,
         telemetry=telemetry,
     )
@@ -316,7 +520,9 @@ def build_webhook_guard(
     return candidate_guard
 
 
-def _idempotency_key(request: WebhookRequest) -> str:
+def _idempotency_key(request: WebhookRequest, signature_hash: str | None = None) -> str:
+    if signature_hash:
+        return f"{request.source}:{request.event_id}:{signature_hash}"
     return f"{request.source}:{request.event_id}"
 
 

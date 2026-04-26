@@ -39,7 +39,6 @@ Active changes still open:
 - `chaos-fuzz-and-prompt-regression-testing-program` - not implemented
 - `credential-rotation-sla-and-break-glass` - not implemented
 - `data-retention-deletion-and-dpa-compliance` - not implemented
-- `jira-webhook-replay-and-rate-limit-hardening` - not implemented beyond the existing foundation
 - `progressive-delivery-and-feature-flag-kill-switches` - not implemented as a full change
 
 ## Implemented foundations
@@ -297,6 +296,34 @@ Important limitation:
 - reconciliation is operator-driven via API; full ARQ scheduled job requires worker queue integration
 - provider invoice ingestion is manual; no automatic provider invoice API integration
 
+### 12. Jira webhook replay and rate-limit hardening
+
+Status: Implemented
+
+Covered OpenSpec change:
+
+- `2026-04-26-jira-webhook-replay-and-rate-limit-hardening`
+
+What exists now:
+
+- `signature_hash` column on `webhook_idempotency_records` with composite unique index `(source, delivery_id, signature_hash)` (Alembic migration `20260426_0013`)
+- `webhook_secret_rotations` table for audited credential rotation with overlap windows
+- `webhook_rate_limit_rejections` table for flood-limit audit trail
+- Dual-secret HMAC verifier with configurable 24-hour rotation overlap window
+- Redis sliding-window Lua script for per-ticket flood limit (20/minute)
+- IP allowlist pre-filter evaluated before signature verification
+- Admin API for secret rotation at `/api/v1/admin/webhook/rotate-secret`
+- Admin API for IP allowlist CRUD at `/api/v1/admin/webhook/ip-allowlist`
+- Rate-limit rejection listing at `/api/v1/admin/webhook/rate-limit-rejections`
+- Prometheus metrics: `devsquad_webhook_signature_matched_previous_total`, `devsquad_webhook_rate_limit_rejections_total`
+- Contract tests under `backend/tests/test_webhook_hardening_contracts.py` - 8 tests passing
+
+Important limitation:
+
+- IP allowlist is stored in environment config; PostgreSQL-backed versioned config store is deferred
+- Load test across multiple replicas requires cluster infrastructure
+- Chaos test for mid-traffic rotation is deferred to the chaos-fuzz change
+
 ## Active work with implementation present
 
 ### GitHub App and PAT onboarding mechanics
@@ -394,10 +421,6 @@ The following items block a true production-ready deployment and map to active O
 
 ### Tier 1 production blockers
 
-- Complete `jira-webhook-replay-and-rate-limit-hardening`
-  - add replay hardening beyond the current `(source, delivery_id)` idempotency foundation
-  - implement dual-secret rotation, CIDR allowlists, and Redis sliding-window enforcement
-
 - Complete `credential-rotation-sla-and-break-glass`
   - operationalize rotation schedules, alerts, dual-control break-glass, and KEK rotation drills
 
@@ -435,16 +458,16 @@ If the question is "can this system be declared fully production-operational for
 
 At a macro level:
 
-- completed foundations: runtime, platform contracts, security contracts, LLM governance, durable persistence, control plane, UI shell, operations policy primitives, GitHub App and PAT onboarding, API versioning, OpenAPI diff gate, optional internal RAG, and public status/runbook baseline
+- completed foundations: runtime, platform contracts, security contracts, LLM governance, durable persistence, control plane, UI shell, operations policy primitives, GitHub App and PAT onboarding, API versioning, OpenAPI diff gate, optional internal RAG, public status/runbook baseline, billing rate-card reconciliation, and webhook replay/rate-limit hardening
 - partially complete: frontend productization, production Helm delivery, operational drills, and live deployment evidence
-- still required: webhook hardening, progressive delivery, compliance operations, real paging drill evidence, and the expanded quality program
+- still required: progressive delivery, compliance operations, real paging drill evidence, and the expanded quality program
 
 ## Current validation snapshot
 
 Validation run during this status update (2026-04-26):
 
 - `uv run --project backend ruff check backend/src backend/tests scripts/lint_alert_runbooks.py` - passed
-- `uv run --project backend pytest` - passed, 166 passed, 1 skipped, 0 failed
+- `uv run --project backend pytest` - passed, 174 passed, 1 skipped, 0 failed
 - `npm run --prefix frontend test -- --run` - passed, 7 passed
 - `npm run --prefix frontend build` - passed
 - `helm template dev-squad ./helm -f ./helm/values.yaml` - passed

@@ -94,6 +94,7 @@ webhook_idempotency_records = Table(
     Column("team_id", String(128), nullable=False),
     Column("endpoint", String(255), nullable=False),
     Column("hmac_digest", String(128), nullable=False),
+    Column("signature_hash", String(64), nullable=True),
     Column("disposition_status", String(32), nullable=False),
     Column(
         "received_at",
@@ -102,6 +103,48 @@ webhook_idempotency_records = Table(
         server_default=text("now()"),
     ),
     UniqueConstraint("source", "delivery_id", name="uq_webhook_idempotency_source_delivery"),
+    UniqueConstraint("source", "delivery_id", "signature_hash", name="uq_webhook_idempotency_source_delivery_sighash"),
+)
+
+webhook_secret_rotations = Table(
+    "webhook_secret_rotations",
+    metadata,
+    Column("rotation_id", String(64), primary_key=True),
+    Column("tenant_id", String(128), nullable=False),
+    Column("team_id", String(128), nullable=False),
+    Column("previous_secret_hash", String(128), nullable=True),
+    Column("rotation_overlap_until", DateTime(timezone=True), nullable=True),
+    Column("rotated_by", String(255), nullable=False),
+    Column(
+        "metadata",
+        JSONB,
+        nullable=False,
+        server_default=text("'{}'::jsonb"),
+    ),
+    Column(
+        "created_at",
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("now()"),
+    ),
+)
+
+webhook_rate_limit_rejections = Table(
+    "webhook_rate_limit_rejections",
+    metadata,
+    Column("rejection_id", String(64), primary_key=True),
+    Column("tenant_id", String(128), nullable=False),
+    Column("team_id", String(128), nullable=False),
+    Column("ticket_key", String(128), nullable=False),
+    Column("source", String(64), nullable=False),
+    Column("delivery_id", String(255), nullable=False),
+    Column("remote_addr", String(64), nullable=False),
+    Column(
+        "rejected_at",
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("now()"),
+    ),
 )
 
 dead_letter_records = Table(

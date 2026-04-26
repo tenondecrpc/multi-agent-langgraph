@@ -22,6 +22,7 @@ class RecordingStore:
         request: WebhookRequest,
         *,
         disposition_status: str,
+        signature_hash: str | None = None,
     ) -> bool:
         self.insert_calls += 1
         return True
@@ -101,7 +102,7 @@ def test_shadow_webhook_guard_logs_mismatch_without_affecting_baseline(caplog: p
     with caplog.at_level(logging.WARNING):
         result = shadow.verify(request, now=1_000)
 
-    assert result.idempotency_key == "/api/v1/webhooks/jira:evt-1"
+    assert result.idempotency_key.startswith("jira:evt-1:")
     assert "webhook_guard_shadow_mismatch" in caplog.text
 
 

@@ -18,6 +18,7 @@ class WebhookRequest(BaseModel):
     remote_addr: str
     source: str = "jira"
     endpoint: str = "/api/v1/webhooks/jira"
+    ticket_key: str = "unknown"
 
 
 class WebhookGuardResult(BaseModel):
