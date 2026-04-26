@@ -3,6 +3,7 @@ import { startTransition, useEffect, useState } from "react";
 import {
   activeGraphCandidate,
   agentCards,
+  apiDeprecations,
   initialRuns,
   invalidGraphCandidate,
   persistenceStatus,
@@ -452,6 +453,43 @@ export default function App() {
                       >
                         {adapter.healthy ? t(locale, "healthy") : t(locale, "degraded")}
                       </span>
+                    </article>
+                  ))}
+                </div>
+              </section>
+              <section className="panel">
+                <div className="panel-header">
+                  <h2>API deprecations</h2>
+                  <span className="legend">Deprecation and sunset timeline</span>
+                </div>
+                <div className="deprecation-list" role="list">
+                  {apiDeprecations.map((deprecation) => (
+                    <article
+                      className="run-card deprecation-card"
+                      key={deprecation.deprecationId}
+                      role="listitem"
+                    >
+                      <div className="run-card-top">
+                        <strong>
+                          {deprecation.method} {deprecation.route}
+                        </strong>
+                        <span className="status-pill status-paused">{deprecation.version}</span>
+                      </div>
+                      <dl className="timeline-fields">
+                        <div>
+                          <dt>Deprecated</dt>
+                          <dd>{deprecation.deprecatedAt}</dd>
+                        </div>
+                        <div>
+                          <dt>Sunset</dt>
+                          <dd>{deprecation.sunsetAt}</dd>
+                        </div>
+                        <div>
+                          <dt>Replacement</dt>
+                          <dd>{deprecation.replacementRoute}</dd>
+                        </div>
+                      </dl>
+                      <p className="notice">{deprecation.rationale}</p>
                     </article>
                   ))}
                 </div>

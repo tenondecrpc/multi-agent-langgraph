@@ -68,6 +68,7 @@ class MeteringExportRequest(BaseModel):
     period_start: datetime
     period_end: datetime
     format: str
+    schema_version: str = "v1"
     sealed_period_only: bool = True
 
 

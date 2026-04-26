@@ -476,6 +476,27 @@ audit_events = Table(
     ),
 )
 
+api_deprecations = Table(
+    "api_deprecations",
+    metadata,
+    Column("deprecation_id", String(64), primary_key=True),
+    Column("route", String(255), nullable=False),
+    Column("method", String(16), nullable=False),
+    Column("version", String(32), nullable=False),
+    Column("deprecated_at", DateTime(timezone=True), nullable=False),
+    Column("sunset_at", DateTime(timezone=True), nullable=False),
+    Column("rationale", Text, nullable=False),
+    Column("replacement_route", String(255), nullable=True),
+    Column("active", Boolean, nullable=False, server_default=text("true")),
+    Column(
+        "created_at",
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("now()"),
+    ),
+    UniqueConstraint("route", "method", "version", name="uq_api_deprecations_route_method_version"),
+)
+
 github_app_installations = Table(
     "github_app_installations",
     metadata,

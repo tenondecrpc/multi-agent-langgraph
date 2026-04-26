@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import json
 from datetime import UTC, datetime
 from decimal import Decimal
 from io import StringIO
@@ -256,8 +257,18 @@ class InMemoryMeteringLedger:
             request.period_end,
         )
         if request.format == "csv":
-            return self._export_csv(records)
+            return self._export_csv(records, schema_version=request.schema_version)
         if request.format == "jsonl":
+            if request.schema_version == "v2":
+                return "\n".join(
+                    json.dumps(
+                        {
+                            "schema_version": "v2",
+                            "usage": record.model_dump(mode="json"),
+                        }
+                    )
+                    for record in records
+                )
             return "\n".join(record.model_dump_json() for record in records)
         raise ValueError(f"Unsupported export format `{request.format}`.")
 
@@ -302,7 +313,7 @@ class InMemoryMeteringLedger:
             and period_start <= record.completed_at <= period_end
         ]
 
-    def _export_csv(self, records: list[UsageRecord]) -> str:
+    def _export_csv(self, records: list[UsageRecord], *, schema_version: str) -> str:
         buffer = StringIO()
         fieldnames = [
             "usage_id",
@@ -330,10 +341,15 @@ class InMemoryMeteringLedger:
             "completed_at",
             "status",
         ]
+        if schema_version == "v2":
+            fieldnames = ["schema_version", *fieldnames]
         writer = csv.DictWriter(buffer, fieldnames=fieldnames)
         writer.writeheader()
         for record in records:
-            writer.writerow(record.model_dump(mode="json"))
+            row = record.model_dump(mode="json")
+            if schema_version == "v2":
+                row = {"schema_version": "v2", **row}
+            writer.writerow(row)
         return buffer.getvalue()
 
 

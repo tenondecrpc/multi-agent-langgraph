@@ -56,4 +56,17 @@ describe("App", () => {
     expect(screen.getByText("snapshot-prod-0042")).toBeInTheDocument();
     expect(screen.getAllByText("Healthy")).toHaveLength(3);
   });
+
+  it("shows API deprecation timeline in the admin panel", () => {
+    render(<App />);
+
+    fireEvent.change(screen.getByLabelText("Role"), {
+      target: { value: "admin" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Admin" }));
+
+    expect(screen.getByText("API deprecations")).toBeInTheDocument();
+    expect(screen.getByText("POST /api/v1/runtime/simulate")).toBeInTheDocument();
+    expect(screen.getByText("/api/v2/runtime/simulations")).toBeInTheDocument();
+  });
 });

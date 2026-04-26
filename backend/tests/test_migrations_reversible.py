@@ -200,6 +200,34 @@ def test_internal_rag_pgvector_migration_round_trip(temporary_postgres: str) -> 
     }
 
 
+def test_api_deprecations_migration_round_trip(temporary_postgres: str) -> None:
+    config = build_alembic_config(temporary_postgres)
+    command.upgrade(config, "20260426_0010")
+
+    with _connect(temporary_postgres) as connection:
+        objects = connection.execute(
+            """
+            SELECT
+                to_regclass('api_deprecations') AS deprecations_table,
+                to_regclass('ix_api_deprecations_sunset_at') AS sunset_index
+            """
+        ).fetchone()
+
+    assert dict(objects) == {
+        "deprecations_table": "api_deprecations",
+        "sunset_index": "ix_api_deprecations_sunset_at",
+    }
+
+    command.downgrade(config, "20260424_0009")
+
+    with _connect(temporary_postgres) as connection:
+        removed_objects = connection.execute(
+            "SELECT to_regclass('api_deprecations') AS deprecations_table"
+        ).fetchone()
+
+    assert dict(removed_objects) == {"deprecations_table": None}
+
+
 def _seed_rows(
     database_url: str,
     *,

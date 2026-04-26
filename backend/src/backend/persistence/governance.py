@@ -817,6 +817,22 @@ class PostgresMeteringLedger:
         if request.format == "csv":
             return self._export_rollups_csv(request)
         if request.format == "jsonl":
+            if request.schema_version == "v2":
+                import json
+
+                return "\n".join(
+                    json.dumps(
+                        {
+                            "schema_version": "v2",
+                            "usage": fact.model_dump(mode="json"),
+                        }
+                    )
+                    for fact in self._facts_for_period(
+                        tenant_id=request.tenant_id,
+                        period_start=request.period_start,
+                        period_end=request.period_end,
+                    )
+                )
             return "\n".join(
                 fact.model_dump_json()
                 for fact in self._facts_for_period(
@@ -899,6 +915,7 @@ class PostgresMeteringLedger:
         writer = csv.DictWriter(
             buffer,
             fieldnames=[
+                *(["schema_version"] if request.schema_version == "v2" else []),
                 "rollup_id",
                 "bucket_start",
                 "tenant_id",
@@ -915,22 +932,23 @@ class PostgresMeteringLedger:
         )
         writer.writeheader()
         for rollup in rollups:
-            writer.writerow(
-                {
-                    "rollup_id": rollup.rollup_id,
-                    "bucket_start": rollup.bucket_start.isoformat(),
-                    "tenant_id": rollup.tenant_id,
-                    "team_id": rollup.team_id,
-                    "role": rollup.role,
-                    "provider_id": rollup.provider_id,
-                    "model_id": rollup.model_id,
-                    "rate_card_id": rollup.rate_card_id,
-                    "request_count": rollup.request_count,
-                    "total_input_tokens": rollup.total_input_tokens,
-                    "total_output_tokens": rollup.total_output_tokens,
-                    "total_actual_cost_usd": f"{rollup.total_actual_cost_usd:.6f}",
-                }
-            )
+            row = {
+                "rollup_id": rollup.rollup_id,
+                "bucket_start": rollup.bucket_start.isoformat(),
+                "tenant_id": rollup.tenant_id,
+                "team_id": rollup.team_id,
+                "role": rollup.role,
+                "provider_id": rollup.provider_id,
+                "model_id": rollup.model_id,
+                "rate_card_id": rollup.rate_card_id,
+                "request_count": rollup.request_count,
+                "total_input_tokens": rollup.total_input_tokens,
+                "total_output_tokens": rollup.total_output_tokens,
+                "total_actual_cost_usd": f"{rollup.total_actual_cost_usd:.6f}",
+            }
+            if request.schema_version == "v2":
+                row = {"schema_version": "v2", **row}
+            writer.writerow(row)
         return buffer.getvalue()
 
     @contextmanager

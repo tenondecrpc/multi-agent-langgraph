@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import json
 import logging
 from collections.abc import Callable, Iterator
+from datetime import datetime
 from time import time
 from typing import Annotated
 
@@ -9,7 +11,9 @@ from fastapi import APIRouter, Header, HTTPException, Request, Response, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from backend.persistence.contracts import WebhookGuard, WorkerController
+from backend.api_deprecations import ApiDeprecation
+from backend.governance.metering import MeteringExportRequest
+from backend.persistence.contracts import MeteringLedger, WebhookGuard, WorkerController
 from backend.persistence.factory import build_persistence_adapters
 from backend.security.webhook import WebhookRequest
 
@@ -34,10 +38,13 @@ def route_inventory() -> list[dict[str, str]]:
         {"path": "/api/v1/auth/callback", "method": "GET", "category": "auth"},
         {"path": "/api/v1/admin/profile", "method": "GET", "category": "admin"},
         {"path": "/api/v1/metering/exports", "method": "GET", "category": "metering"},
+        {"path": "/api/v1/metering/exports/v1", "method": "GET", "category": "metering"},
+        {"path": "/api/v1/metering/exports/v2", "method": "GET", "category": "metering"},
     ]
 
 
 def _event_stream() -> Iterator[str]:
+    yield f"event: schema_version\ndata: {json.dumps({'version': 'v1'})}\n\n"
     yield "event: ping\ndata: {\"status\":\"ok\"}\n\n"
 
 
@@ -47,6 +54,8 @@ def build_platform_routers(
     webhook_guard: WebhookGuard | None = None,
     sandbox_builder: SandboxTemplateBuilder | None = None,
     now_provider: Callable[[], int] | None = None,
+    api_deprecations: tuple[ApiDeprecation, ...] = (),
+    metering_ledger: MeteringLedger | None = None,
 ) -> list[APIRouter]:
     adapters = None
     if worker_controller is None or webhook_guard is None:
@@ -55,6 +64,7 @@ def build_platform_routers(
         adapters = build_persistence_adapters()
     controller = worker_controller or adapters.worker_controller
     guard = webhook_guard or adapters.webhook_guard
+    ledger = metering_ledger or adapters.metering_ledger
     builder = sandbox_builder or SandboxTemplateBuilder()
     resolve_now = now_provider or _epoch_seconds
 
@@ -143,9 +153,45 @@ def build_platform_routers(
             ).model_dump(),
         }
 
+    @admin_router.get("/api-deprecations", response_model=list[ApiDeprecation])
+    def list_api_deprecations() -> list[ApiDeprecation]:
+        return sorted(api_deprecations, key=lambda item: (item.sunset_at, item.route))
+
     @metering_router.get("/exports")
     def list_metering_exports() -> dict[str, list[dict[str, str]]]:
-        return {"exports": []}
+        return {"exports": _metering_export_versions()}
+
+    @metering_router.get("/exports/v1")
+    def export_metering_v1(
+        tenant_id: str,
+        period_start: datetime,
+        period_end: datetime,
+        format: str = "csv",
+    ) -> Response:
+        return _export_metering_version(
+            ledger=ledger,
+            schema_version="v1",
+            tenant_id=tenant_id,
+            period_start=period_start,
+            period_end=period_end,
+            format=format,
+        )
+
+    @metering_router.get("/exports/v2")
+    def export_metering_v2(
+        tenant_id: str,
+        period_start: datetime,
+        period_end: datetime,
+        format: str = "csv",
+    ) -> Response:
+        return _export_metering_version(
+            ledger=ledger,
+            schema_version="v2",
+            tenant_id=tenant_id,
+            period_start=period_start,
+            period_end=period_end,
+            format=format,
+        )
 
     return [
         webhooks_router,
@@ -159,6 +205,52 @@ def build_platform_routers(
 
 def _epoch_seconds() -> int:
     return int(time())
+
+
+def _metering_export_versions() -> list[dict[str, str]]:
+    return [
+        {
+            "schema_version": "v1",
+            "path": "/api/v1/metering/exports/v1",
+            "minimum_parallel_support": "P12M",
+        },
+        {
+            "schema_version": "v2",
+            "path": "/api/v1/metering/exports/v2",
+            "minimum_parallel_support": "P12M",
+        },
+    ]
+
+
+def _export_metering_version(
+    *,
+    ledger: MeteringLedger,
+    schema_version: str,
+    tenant_id: str,
+    period_start: datetime,
+    period_end: datetime,
+    format: str,
+) -> Response:
+    if format not in {"csv", "jsonl"}:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="unsupported_metering_export_format")
+    content = ledger.export(
+        MeteringExportRequest(
+            tenant_id=tenant_id,
+            period_start=period_start,
+            period_end=period_end,
+            format=format,
+            schema_version=schema_version,
+        )
+    )
+    media_type = "text/csv" if format == "csv" else "application/x-ndjson"
+    return Response(
+        content=content,
+        media_type=media_type,
+        headers={
+            "X-Metering-Export-Schema": schema_version,
+            "X-Minimum-Parallel-Support": "P12M",
+        },
+    )
 
 
 def _normalise_signature(signature: str) -> str:

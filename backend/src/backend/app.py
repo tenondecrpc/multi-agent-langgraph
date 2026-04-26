@@ -5,6 +5,8 @@ from contextlib import asynccontextmanager
 from fastapi import APIRouter, FastAPI, HTTPException, Response
 from pydantic import BaseModel, Field
 
+from .api_deprecations import ApiDeprecation
+from .api_versioning import ApiVersioningConfig, install_api_versioning
 from .knowledge import (
     InternalRagSettings,
     KnowledgeRepository,
@@ -29,6 +31,7 @@ def create_app(
     migration_runner: MigrationRunner | None = None,
     internal_rag_settings: InternalRagSettings | None = None,
     knowledge_repository: KnowledgeRepository | None = None,
+    api_deprecations: tuple[ApiDeprecation, ...] = (),
 ) -> FastAPI:
     adapters = persistence or build_persistence_adapters()
     runner = migration_runner or MigrationRunner()
@@ -59,6 +62,13 @@ def create_app(
 
     app = FastAPI(title="LangGraph Dev Squad Backend", version="0.1.0", lifespan=lifespan)
     app.state.persistence = adapters
+    install_api_versioning(
+        app,
+        ApiVersioningConfig(
+            deprecations=api_deprecations,
+            telemetry=adapters.telemetry,
+        ),
+    )
     runtime_workflow = workflow or RuntimeWorkflow(repository=adapters.run_repository)
 
     system_router = APIRouter(tags=["system"])
@@ -107,6 +117,8 @@ def create_app(
     for router in build_platform_routers(
         worker_controller=adapters.worker_controller,
         webhook_guard=adapters.webhook_guard,
+        api_deprecations=api_deprecations,
+        metering_ledger=adapters.metering_ledger,
     ):
         app.include_router(router)
     app.include_router(

@@ -211,6 +211,11 @@ textarea:focus-visible {
   margin-bottom: 1rem;
 }
 
+.deprecation-list {
+  display: grid;
+  gap: 0.85rem;
+}
+
 .run-card,
 .metric-card,
 .desk-lane {
@@ -227,6 +232,27 @@ textarea:focus-visible {
   justify-content: space-between;
   gap: 0.5rem;
   align-items: center;
+}
+
+.deprecation-card strong {
+  overflow-wrap: anywhere;
+}
+
+.timeline-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 0.75rem;
+  margin: 0.85rem 0;
+}
+
+.timeline-fields dt {
+  color: #d8d1c4;
+  font-size: 0.86rem;
+}
+
+.timeline-fields dd {
+  margin: 0.2rem 0 0;
+  overflow-wrap: anywhere;
 }
 
 .status-pill {

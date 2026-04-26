@@ -1,0 +1,73 @@
+name: OpenAPI Diff
+
+on:
+  pull_request:
+    paths:
+      - "backend/src/**"
+      - "backend/tests/**"
+      - "scripts/openapi_diff_gate.py"
+      - "docs/api/**"
+      - ".github/workflows/openapi-diff.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  openapi-diff:
+    runs-on: ubuntu-latest
+    env:
+      OPENAPI_DIFF_MODE: warn
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: backend/.python-version
+
+      - name: Sync backend dependencies
+        run: uv sync --project backend --dev
+
+      - name: Generate branch OpenAPI
+        run: uv run --project backend python scripts/openapi_diff_gate.py generate --output /tmp/openapi-head-v1.json --major 1
+
+      - name: Load base OpenAPI
+        id: base-openapi
+        run: |
+          git fetch origin "${{ github.base_ref }}" --depth=1
+          if git show "origin/${{ github.base_ref }}:docs/api/openapi-v1.json" > /tmp/openapi-base-v1.json; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::No base OpenAPI contract found at docs/api/openapi-v1.json; skipping diff for this PR."
+            echo "found=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Diff OpenAPI
+        if: steps.base-openapi.outputs.found == 'true'
+        run: >
+          uv run --project backend python scripts/openapi_diff_gate.py diff
+          --base /tmp/openapi-base-v1.json
+          --head /tmp/openapi-head-v1.json
+          --report /tmp/openapi-diff-report.json
+          --mode "$OPENAPI_DIFF_MODE"
+          --github-event "$GITHUB_EVENT_PATH"
+          --approval-registry docs/api/breaking-change-approvals.jsonl
+          --audit-output /tmp/openapi-bypass-audit.jsonl
+
+      - name: Upload OpenAPI diff evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: openapi-diff-evidence
+          path: |
+            /tmp/openapi-head-v1.json
+            /tmp/openapi-base-v1.json
+            /tmp/openapi-diff-report.json
+            /tmp/openapi-bypass-audit.jsonl
+          if-no-files-found: ignore

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -342,6 +343,50 @@ def test_metering_rollups_exports_and_reconciliation_are_reproducible() -> None:
     assert "usage-1" in csv_export
     assert reconciliation.drift_amount_usd == Decimal("0.00")
     assert reconciliation.usage_ids == ["usage-1", "usage-2"]
+
+
+def test_metering_export_versions_reconcile_to_same_total() -> None:
+    ledger = InMemoryMeteringLedger()
+    completed_at = datetime(2026, 4, 17, 10, 5, tzinfo=UTC)
+    request_window = {
+        "tenant_id": "tenant-alpha",
+        "period_start": completed_at - timedelta(minutes=5),
+        "period_end": completed_at + timedelta(minutes=5),
+        "format": "csv",
+    }
+
+    ledger.record_usage(
+        UsageRecord(
+            usage_id="usage-1",
+            tenant_id="tenant-alpha",
+            team_id="team-core",
+            run_id="run-123",
+            ticket_key="ENG-101",
+            role="coder",
+            provider_id="openai",
+            model_id="gpt-4.1",
+            deployment_profile="connected",
+            input_tokens=300,
+            output_tokens=120,
+            latency_ms=1200,
+            estimated_cost_usd=Decimal("1.80"),
+            actual_cost_usd=Decimal("1.50"),
+            rate_card_id="card-openai-v1",
+            trace_id="trace-1",
+            span_id="span-1",
+            started_at=completed_at - timedelta(seconds=2),
+            completed_at=completed_at,
+        )
+    )
+
+    v1_export = ledger.export(MeteringExportRequest(**request_window, schema_version="v1"))
+    v2_export = ledger.export(MeteringExportRequest(**request_window, schema_version="v2"))
+    v1_rows = list(csv.DictReader(v1_export.splitlines()))
+    v2_rows = list(csv.DictReader(v2_export.splitlines()))
+
+    assert v2_rows[0]["schema_version"] == "v2"
+    assert sum(Decimal(row["actual_cost_usd"]) for row in v1_rows) == Decimal("1.50")
+    assert sum(Decimal(row["actual_cost_usd"]) for row in v2_rows) == Decimal("1.50")
 
 
 def test_runtime_default_sinks_include_llm_governance_reasons() -> None:

@@ -43,6 +43,17 @@ export type PersistenceStatusCard = {
   adapters: PersistenceAdapterStatus[];
 };
 
+export type ApiDeprecationTimeline = {
+  deprecationId: string;
+  route: string;
+  method: string;
+  version: string;
+  deprecatedAt: string;
+  sunsetAt: string;
+  rationale: string;
+  replacementRoute: string;
+};
+
 export const roles: OperatorRole[] = ["viewer", "operator", "admin", "super-admin"];
 
 export const initialRuns: RunCard[] = [
@@ -184,3 +195,16 @@ export const persistenceStatus: PersistenceStatusCard = {
     { name: "encryption", configured: true, healthy: true },
   ],
 };
+
+export const apiDeprecations: ApiDeprecationTimeline[] = [
+  {
+    deprecationId: "runtime-simulate-v1",
+    route: "/api/v1/runtime/simulate",
+    method: "POST",
+    version: "v1",
+    deprecatedAt: "2026-04-26",
+    sunsetAt: "2027-04-26",
+    rationale: "v2 will separate planning simulation from execution controls.",
+    replacementRoute: "/api/v2/runtime/simulations",
+  },
+];
