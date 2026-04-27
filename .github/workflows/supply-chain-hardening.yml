@@ -381,9 +381,10 @@ jobs:
         env:
           BACKEND_IMAGE: "ghcr.io/${{ github.repository }}/backend@${{ needs.backend-slsa-provenance.outputs.digest }}"
         run: |
-          cosign attach sbom "$BACKEND_IMAGE" \
-            --sbom backend-sbom.spdx.json \
-            --sbom-type spdxjson
+          cosign attest --yes \
+            --predicate backend-sbom.spdx.json \
+            --type spdxjson \
+            "$BACKEND_IMAGE"
 
       - name: Sign frontend image with cosign keyless
         env:
@@ -395,9 +396,10 @@ jobs:
         env:
           FRONTEND_IMAGE: "ghcr.io/${{ github.repository }}/frontend@${{ needs.frontend-slsa-provenance.outputs.digest }}"
         run: |
-          cosign attach sbom "$FRONTEND_IMAGE" \
-            --sbom frontend-sbom.spdx.json \
-            --sbom-type spdxjson
+          cosign attest --yes \
+            --predicate frontend-sbom.spdx.json \
+            --type spdxjson \
+            "$FRONTEND_IMAGE"
 
       - name: Upload signing evidence
         uses: actions/upload-artifact@v4
