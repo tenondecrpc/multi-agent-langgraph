@@ -1,111 +1,13 @@
-# repository-and-supply-chain-guardrails Specification
-
-## Purpose
-TBD - created by archiving change phase-3-tenant-security-and-access. Update Purpose after archive.
-## Requirements
-### Requirement: Repository Safety Rails Are Mandatory
-
-The product MUST block unsafe repository actions through backend-enforced path and branch controls.
-
-#### Scenario: Forbidden path writes are blocked
-- **WHEN** an agent attempts to modify protected branches or protected file classes such as CI config, infra, Dockerfiles, secrets, or CODEOWNERS-class files
-- **THEN** the action is blocked or escalated through a registered security path
-- **AND** the product does not treat the change as a normal candidate for automatic PR creation
-
-#### Scenario: Missing branch protection blocks PR creation
-- **WHEN** the target repository lacks the required server-side branch protection for the planned base branch
-- **THEN** PR creation is refused
-- **AND** the run escalates with an explicit policy reason
-
-### Requirement: Secret Hygiene Is Enforced End-To-End
-
-Secret scanning MUST run across developer, runtime, and CI surfaces relevant to generated changes.
-
-#### Scenario: Secret finding halts the run
-- **WHEN** generated diffs, PR text, or relevant repository artifacts contain a secret-scanner finding
-- **THEN** the run halts normal progress and escalates
-- **AND** the secret-bearing output is not forwarded as if it were safe
-
-### Requirement: Signed And Transparent Authorship Is Required
-
-Agent-authored commits and deliverables MUST support signed provenance and transparent authorship metadata.
-
-#### Scenario: Unsigned commit is not accepted
-- **WHEN** the product prepares a commit for an automated change
-- **THEN** the commit is expected to use the configured signing mechanism
-- **AND** downstream branch protection may reject unsigned commits without weakening the product contract
-
-#### Scenario: PR provenance stays visible
-- **WHEN** a PR is prepared by the system
-- **THEN** the PR includes standardized generated-by provenance metadata that links the change to the responsible run
-
-### Requirement: Supply-Chain Controls Are Baseline Requirements
-
-The product MUST plan for SBOM generation, image signing, provenance, dependency scanning, and license policy enforcement.
-
-#### Scenario: Build artifacts carry security evidence
-- **WHEN** images or release artifacts are produced later in the implementation lifecycle
-- **THEN** the build pipeline produces SBOM and provenance evidence and signs the result
-- **AND** downstream environments can verify the signed artifacts before promotion
-
-#### Scenario: Vulnerability and license policy remain enforceable
-- **WHEN** dependencies or base images are evaluated in CI
-- **THEN** the pipeline can block high-risk vulnerabilities and disallowed licenses according to policy
-- **AND** pinned or reproducible build requirements are not optional
-
-### Requirement: Branch-Protection Verification Is Composed With Existing Guards
-
-The branch-protection verification SHALL run as part of the pre-PR chain together with implementation, tests, diff-size guard, forbidden-path guard, review approval, and pre-PR sync. Order and atomicity of these guards SHALL NOT be bypassable.
-
-#### Scenario: Any missing guard blocks PR creation
-- **WHEN** any of the guards (implementation, tests, diff-size, forbidden-path, review approval, pre-PR sync, branch-protection) is not satisfied
-- **THEN** the pr_creator node does not open a PR
-- **AND** the run escalates via its registered sink
-
-### Requirement: CI Generates SBOM, Signature, And Provenance Per Image
-
-Every image built in CI SHALL have a syft SBOM attached, a cosign keyless signature bound to the CI OIDC identity, and a SLSA Level 3 provenance attestation.
-
-#### Scenario: Missing any artifact fails the build
-- **WHEN** an image is pushed without an SBOM, signature, or provenance
-- **THEN** CI fails with an actionable error
-- **AND** the image is not promotable
-
-### Requirement: Dependency Scanning Blocks Critical And High Findings
-
-Trivy, Grype, and OSV-Scanner SHALL run in CI and block on critical and high severities. Allowlisted findings SHALL require rationale, actor, and `expires_at`.
-
-#### Scenario: Unreviewed high finding blocks merge
-- **WHEN** a scan reports a high finding not on the allowlist
-- **THEN** the merge is blocked
-- **AND** the report is attached to the PR
-
-### Requirement: Dockerfile Pinning And No Latest Tag
-
-Base images in Dockerfiles SHALL be pinned by digest. The `latest` tag SHALL NOT appear in any Dockerfile or Helm value.
-
-#### Scenario: Dockerfile lint rejects floating tag
-- **WHEN** a Dockerfile references a mutable or `latest` tag
-- **THEN** CI lint fails
-- **AND** the operator receives a remediation hint
-
-### Requirement: License Allowlist And Secret Scanning In CI
-
-Every merged commit SHALL pass license allowlist enforcement and secret scanning with gitleaks and trufflehog.
-
-#### Scenario: Disallowed license fails PR checks
-- **WHEN** a dependency introduces a license outside the allowlist
-- **THEN** the PR check fails
-- **AND** the remediation path is documented in the error
+## ADDED Requirements
 
 ### Requirement: Stabilization Extends Existing Supply-Chain Guardrails
 
-This capability SHALL strengthen existing supply-chain security decisions without reopening or weakening them. The workflow surface in `.github/workflows/supply-chain-hardening.yml` SHALL remain the integration point until jobs are migrated to shared helpers. Existing blocking thresholds SHALL NOT be relaxed: HIGH and CRITICAL scanner findings still block, secret scanning remains mandatory, SBOM generation remains mandatory, keyless signing remains authoritative, and SLSA provenance remains required for release images.
+This change SHALL strengthen the existing `repository-and-supply-chain-guardrails` capability without reopening the prior supply-chain security decisions. The existing workflow surface in `.github/workflows/supply-chain-hardening.yml` SHALL remain the integration point until a follow-up implementation change migrates jobs to shared helpers. Existing blocking thresholds SHALL NOT be relaxed: HIGH and CRITICAL scanner findings still block, secret scanning remains mandatory, SBOM generation remains mandatory, keyless signing remains authoritative, and SLSA provenance remains required for release images.
 
-The capability SHALL NOT introduce a new production datastore, vendor-hosted control plane, cross-customer data plane, runtime graph repo-writing path, or normal-path human approval requirement. Any future implementation that writes repository files SHALL still follow the build-time OpenSpec workflow, and any runtime repo-writing path in the product SHALL remain gated by `spec_ready_for_implementation` and an existing task list.
+The change SHALL NOT introduce a new production datastore, vendor-hosted control plane, cross-customer data plane, runtime graph repo-writing path, or normal-path human approval requirement. Any future implementation that writes repository files SHALL still follow the build-time OpenSpec workflow, and any runtime repo-writing path in the product SHALL remain gated by `spec_ready_for_implementation` and an existing task list.
 
 #### Scenario: Existing guardrail is strengthened
-- **WHEN** supply-chain stabilization is implemented
+- **WHEN** the supply-chain stabilization change is implemented
 - **THEN** it reuses `.github/workflows/supply-chain-hardening.yml`, `scripts/check_license_allowlist.py`, `renovate.json`, and existing runbook locations
 - **AND** no existing required scan, signing, attestation, or admission control is removed or weakened
 
@@ -161,7 +63,7 @@ An automated renewal opener SHALL run on a scheduled workflow and on manual disp
 
 A dry-run check SHALL build a tiny test image and exercise every supply-chain step against it. The dry-run image SHALL live at `backend/tests/supply_chain/dry_run/Dockerfile`. It SHALL be intentionally small, deterministic, and representative enough to exercise package discovery, operating-system package scanning, image signing, SBOM generation, provenance generation, license parsing, and vulnerability report parsing. The image SHALL use pinned base image digests and SHALL NOT depend on tenant secrets or external private registries.
 
-The validator SHALL run from a repository script and SHALL assert all of the following:
+The validator SHALL run from a repository script in the follow-up implementation and SHALL assert all of the following:
 
 - SBOM file exists, is non-empty, and parses as CycloneDX JSON or SPDX JSON.
 - Cosign signature verification succeeds for the dry-run image digest using the expected GitHub Actions OIDC issuer and repository identity.
@@ -263,7 +165,7 @@ The supply-chain runbook SHALL document how to retrieve `release-evidence.json`,
 
 ### Requirement: Supply-Chain Permissions Are Centralized
 
-A composite action SHALL be introduced at `.github/actions/supply-chain-context/action.yml`. The composite action SHALL centralize checkout, GHCR login, cosign setup, Docker Buildx setup where required, and validation of expected token scopes. Supply-chain jobs SHALL use the composite action for shared setup instead of copy-pasting login and setup steps.
+A composite action SHALL be introduced at `.github/actions/supply-chain-context/action.yml` in the follow-up implementation. The composite action SHALL centralize checkout, GHCR login, cosign setup, Docker Buildx setup where required, and validation of expected token scopes. Supply-chain jobs SHALL use the composite action for shared setup instead of copy-pasting login and setup steps.
 
 GitHub Actions `permissions` blocks SHALL remain declared at workflow or job level because composite actions cannot grant permissions. The migration SHALL still centralize the required matrix in one documented contract and SHALL make jobs fail early when the caller omits required permissions. Required permissions are:
 
@@ -306,3 +208,20 @@ Alerts SHALL cover overdue pins beyond cadence, dry-run failure on `main`, missi
 #### Scenario: Dry-run failure on main pages platform
 - **WHEN** the dry-run validator fails on `main`
 - **THEN** the dry-run failure alert fires with the assertion name, structured reason, and failed workflow run URL
+
+### Requirement: Implementation Remains Deferred Until Specification Is Complete
+
+The implementation of `scripts/supply_chain_versions.json`, the dry-run image, validator, composite action, release evidence generator, workflow migration, and automated renewal opener SHALL be deferred to a follow-up OpenSpec apply pass after this specification phase is marked complete. The follow-up implementation SHALL use this spec as the acceptance contract and SHALL include CI or script-level verification for the schema, dry-run validator, fail-closed release checks, and evidence generation.
+
+#### Scenario: Specification phase completes without product code
+- **WHEN** this OpenSpec change completes its artifact tasks
+- **THEN** it may mark the specification tasks complete without creating the version manifest, dry-run image, validator, composite action, or renewal opener
+- **AND** the next apply pass must implement those files before the change is eligible to archive
+
+## Non-Goals
+
+- Replacing GitHub Actions with another CI platform.
+- Changing the signing root of trust away from cosign keyless and GitHub Actions OIDC.
+- Introducing a new SBOM format beyond CycloneDX JSON or SPDX JSON.
+- Weakening HIGH and CRITICAL vulnerability blocking thresholds.
+- Creating any runtime agent path that writes repositories outside the protected SpecKit-style artifact gate.
