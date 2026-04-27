@@ -237,8 +237,6 @@ jobs:
       packages: write
       id-token: write
       actions: read
-    secrets:
-      registry-password: ${{ secrets.GITHUB_TOKEN }}
     outputs:
       image: ${{ steps.digest.outputs.image }}
       digest: ${{ steps.digest.outputs.digest }}
@@ -288,8 +286,6 @@ jobs:
       packages: write
       id-token: write
       actions: read
-    secrets:
-      registry-password: ${{ secrets.GITHUB_TOKEN }}
     outputs:
       image: ${{ steps.digest.outputs.image }}
       digest: ${{ steps.digest.outputs.digest }}
