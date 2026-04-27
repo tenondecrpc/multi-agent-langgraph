@@ -235,6 +235,10 @@ jobs:
     permissions:
       contents: read
       packages: write
+      id-token: write
+      actions: read
+    secrets:
+      registry-password: ${{ secrets.GITHUB_TOKEN }}
     outputs:
       image: ${{ steps.digest.outputs.image }}
       digest: ${{ steps.digest.outputs.digest }}
@@ -270,17 +274,11 @@ jobs:
           echo "image=ghcr.io/${{ github.repository }}/backend" >> "$GITHUB_OUTPUT"
 
       - name: Generate SLSA provenance
-        permissions:
-          id-token: write
-          packages: write
-          actions: read
         uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0
         with:
           image: ${{ steps.digest.outputs.image }}
           digest: ${{ steps.digest.outputs.digest }}
           registry-username: ${{ github.actor }}
-        secrets:
-          registry-password: ${{ secrets.GITHUB_TOKEN }}
 
   frontend-slsa-provenance:
     needs: [secret-scan, dockerfile-lint, frontend-scan]
@@ -288,6 +286,10 @@ jobs:
     permissions:
       contents: read
       packages: write
+      id-token: write
+      actions: read
+    secrets:
+      registry-password: ${{ secrets.GITHUB_TOKEN }}
     outputs:
       image: ${{ steps.digest.outputs.image }}
       digest: ${{ steps.digest.outputs.digest }}
@@ -323,17 +325,11 @@ jobs:
           echo "image=ghcr.io/${{ github.repository }}/frontend" >> "$GITHUB_OUTPUT"
 
       - name: Generate SLSA provenance
-        permissions:
-          id-token: write
-          packages: write
-          actions: read
         uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0
         with:
           image: ${{ steps.digest.outputs.image }}
           digest: ${{ steps.digest.outputs.digest }}
           registry-username: ${{ github.actor }}
-        secrets:
-          registry-password: ${{ secrets.GITHUB_TOKEN }}
 
   image-signing:
     needs: [backend-slsa-provenance, frontend-slsa-provenance, license-check]
