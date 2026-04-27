@@ -233,33 +233,107 @@ jobs:
     needs: [secret-scan, dockerfile-lint, sbom-and-scan]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
-      id-token: write
+      contents: read
       packages: write
-      actions: read
-    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.0.0
-    with:
-      dockerfile: backend/Dockerfile
-      context-path: backend/
-      image: ghcr.io/${{ github.repository }}/backend
-      registry-username: ${{ github.actor }}
-    secrets:
-      registry-password: ${{ secrets.GITHUB_TOKEN }}
+    outputs:
+      image: ${{ steps.digest.outputs.image }}
+      digest: ${{ steps.digest.outputs.digest }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push backend image
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: backend/
+          file: backend/Dockerfile
+          push: true
+          tags: ghcr.io/${{ github.repository }}/backend:${{ github.sha }}
+          provenance: false
+
+      - name: Export backend digest
+        id: digest
+        run: |
+          echo "digest=${{ steps.build.outputs.digest }}" >> "$GITHUB_OUTPUT"
+          echo "image=ghcr.io/${{ github.repository }}/backend" >> "$GITHUB_OUTPUT"
+
+      - name: Generate SLSA provenance
+        permissions:
+          id-token: write
+          packages: write
+          actions: read
+        uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0
+        with:
+          image: ${{ steps.digest.outputs.image }}
+          digest: ${{ steps.digest.outputs.digest }}
+          registry-username: ${{ github.actor }}
+        secrets:
+          registry-password: ${{ secrets.GITHUB_TOKEN }}
 
   frontend-slsa-provenance:
     needs: [secret-scan, dockerfile-lint, frontend-scan]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
-      id-token: write
+      contents: read
       packages: write
-      actions: read
-    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.0.0
-    with:
-      dockerfile: frontend/Dockerfile
-      context-path: frontend/
-      image: ghcr.io/${{ github.repository }}/frontend
-      registry-username: ${{ github.actor }}
-    secrets:
-      registry-password: ${{ secrets.GITHUB_TOKEN }}
+    outputs:
+      image: ${{ steps.digest.outputs.image }}
+      digest: ${{ steps.digest.outputs.digest }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push frontend image
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: frontend/
+          file: frontend/Dockerfile
+          push: true
+          tags: ghcr.io/${{ github.repository }}/frontend:${{ github.sha }}
+          provenance: false
+
+      - name: Export frontend digest
+        id: digest
+        run: |
+          echo "digest=${{ steps.build.outputs.digest }}" >> "$GITHUB_OUTPUT"
+          echo "image=ghcr.io/${{ github.repository }}/frontend" >> "$GITHUB_OUTPUT"
+
+      - name: Generate SLSA provenance
+        permissions:
+          id-token: write
+          packages: write
+          actions: read
+        uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0
+        with:
+          image: ${{ steps.digest.outputs.image }}
+          digest: ${{ steps.digest.outputs.digest }}
+          registry-username: ${{ github.actor }}
+        secrets:
+          registry-password: ${{ secrets.GITHUB_TOKEN }}
 
   image-signing:
     needs: [backend-slsa-provenance, frontend-slsa-provenance, license-check]
@@ -288,13 +362,13 @@ jobs:
 
       - name: Sign backend image with cosign keyless
         env:
-          BACKEND_IMAGE: "ghcr.io/${{ github.repository }}/backend:${{ github.sha }}"
+          BACKEND_IMAGE: "ghcr.io/${{ github.repository }}/backend@${{ needs.backend-slsa-provenance.outputs.digest }}"
         run: |
           cosign sign --yes "$BACKEND_IMAGE"
 
       - name: Attach SBOM to backend image
         env:
-          BACKEND_IMAGE: "ghcr.io/${{ github.repository }}/backend:${{ github.sha }}"
+          BACKEND_IMAGE: "ghcr.io/${{ github.repository }}/backend@${{ needs.backend-slsa-provenance.outputs.digest }}"
         run: |
           cosign attach sbom "$BACKEND_IMAGE" \
             --sbom backend-sbom.spdx.json \
@@ -302,13 +376,13 @@ jobs:
 
       - name: Sign frontend image with cosign keyless
         env:
-          FRONTEND_IMAGE: "ghcr.io/${{ github.repository }}/frontend:${{ github.sha }}"
+          FRONTEND_IMAGE: "ghcr.io/${{ github.repository }}/frontend@${{ needs.frontend-slsa-provenance.outputs.digest }}"
         run: |
           cosign sign --yes "$FRONTEND_IMAGE"
 
       - name: Attach SBOM to frontend image
         env:
-          FRONTEND_IMAGE: "ghcr.io/${{ github.repository }}/frontend:${{ github.sha }}"
+          FRONTEND_IMAGE: "ghcr.io/${{ github.repository }}/frontend@${{ needs.frontend-slsa-provenance.outputs.digest }}"
         run: |
           cosign attach sbom "$FRONTEND_IMAGE" \
             --sbom frontend-sbom.spdx.json \
