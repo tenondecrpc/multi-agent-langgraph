@@ -123,20 +123,10 @@ jobs:
           sarif_file: trivy-backend-results.sarif
 
       - name: Run OSV-Scanner on backend
-        uses: google/osv-scanner-action@v1.9.2
+        uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@v2.3.5
         with:
           scan-args: |-
             --lockfile=backend/uv.lock
-            --format=sarif
-            --output=osv-backend-results.sarif
-
-      - name: Upload OSV-Scanner results
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: osv-scanner-backend-results
-          path: osv-backend-results.sarif
-          retention-days: 90
 
   frontend-scan:
     runs-on: ubuntu-latest
@@ -272,7 +262,7 @@ jobs:
         id: digest
         run: |
           echo "digest=${{ steps.build.outputs.digest }}" >> "$GITHUB_OUTPUT"
-          echo "image=ghcr.io/${{ github.repository }}/backend:${{ github.sha }}" >> "$GITHUB_OUTPUT"
+          echo "image=ghcr.io/${{ github.repository }}/backend" >> "$GITHUB_OUTPUT"
 
   backend-slsa-generator:
     needs: [backend-slsa-provenance]
@@ -328,7 +318,7 @@ jobs:
         id: digest
         run: |
           echo "digest=${{ steps.build.outputs.digest }}" >> "$GITHUB_OUTPUT"
-          echo "image=ghcr.io/${{ github.repository }}/frontend:${{ github.sha }}" >> "$GITHUB_OUTPUT"
+          echo "image=ghcr.io/${{ github.repository }}/frontend" >> "$GITHUB_OUTPUT"
 
   frontend-slsa-generator:
     needs: [frontend-slsa-provenance]
