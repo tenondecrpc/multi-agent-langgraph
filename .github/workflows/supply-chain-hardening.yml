@@ -267,6 +267,11 @@ jobs:
   backend-slsa-generator:
     needs: [backend-slsa-provenance]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      actions: read
+      id-token: write
+      packages: write
+      contents: read
     uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0
     with:
       image: ${{ needs.backend-slsa-provenance.outputs.image }}
@@ -320,6 +325,11 @@ jobs:
   frontend-slsa-generator:
     needs: [frontend-slsa-provenance]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      actions: read
+      id-token: write
+      packages: write
+      contents: read
     uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0
     with:
       image: ${{ needs.frontend-slsa-provenance.outputs.image }}
