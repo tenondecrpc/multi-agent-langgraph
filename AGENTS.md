@@ -59,14 +59,16 @@ When in doubt: changes to this repository go through OpenSpec. Changes to custom
 
 ## Repository Status
 
-This repository is in early implementation. Executable backend and frontend slices now exist under `backend/` and `frontend/`. Initial operator and status documentation now exists under `docs/`, while `helm/` remains a scaffold and the archived OpenSpec changes record the implemented roadmap.
+This repository is in early implementation. Executable backend and frontend slices now exist under `backend/` and `frontend/`. Human-readable operator and status documentation now exists under `docs/`, machine-readable contracts live under `contracts/`, deployable operational artifacts live under `operations/`, and `helm/` remains a scaffold.
 
 Scaffold targets remain:
 
 - `backend/` - FastAPI app, ARQ workers, LangGraph graph, integrations
 - `frontend/` - Vite + React + TypeScript admin and monitoring UI
 - `helm/` - Helm charts for Kubernetes deployment (connected and `air_gapped` profiles)
-- `docs/` - Operator, integrator, and developer documentation
+- `contracts/` - Machine-readable API contracts and approval registries
+- `operations/` - Deployable operational artifacts such as alert rules and dashboards
+- `docs/` - Human-readable operator, integrator, and developer documentation
 
 Use `uv` for Python dependency management, environment synchronization, and Python command execution.
 

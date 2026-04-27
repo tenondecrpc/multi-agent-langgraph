@@ -6,7 +6,7 @@ The GitHub Actions workflow starts in warn mode for the first release window:
 
 - `OPENAPI_DIFF_MODE=warn` reports breaking changes without blocking.
 - After the transition release, change the workflow value to `block`.
-- In block mode, breaking changes fail unless the pull request has the `breaking-change-approved` label and a matching JSONL record in `docs/api/breaking-change-approvals.jsonl`.
+- In block mode, breaking changes fail unless the pull request has the `breaking-change-approved` label and a matching JSONL record in `contracts/openapi/breaking-change-approvals.jsonl`.
 
 Approval records must include:
 

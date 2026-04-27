@@ -3,8 +3,8 @@ name: Alert Runbook Lint
 on:
   pull_request:
     paths:
-      - "docs/alerts/**"
       - "docs/runbooks/**"
+      - "operations/alerts/**"
       - "scripts/lint_alert_runbooks.py"
       - ".github/workflows/alert-runbook-lint.yml"
   push:
@@ -32,5 +32,5 @@ jobs:
       - name: Lint alert runbook links
         run: >
           uv run --project backend python scripts/lint_alert_runbooks.py
-          --alerts-dir docs/alerts
+          --alerts-dir operations/alerts
           --runbooks-dir docs/runbooks

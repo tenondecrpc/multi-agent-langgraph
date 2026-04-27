@@ -6,7 +6,7 @@ on:
       - "backend/src/**"
       - "backend/tests/**"
       - "scripts/openapi_diff_gate.py"
-      - "docs/api/**"
+      - "contracts/openapi/**"
       - ".github/workflows/openapi-diff.yml"
 
 permissions:
@@ -41,10 +41,10 @@ jobs:
         id: base-openapi
         run: |
           git fetch origin "${{ github.base_ref }}" --depth=1
-          if git show "origin/${{ github.base_ref }}:docs/api/openapi-v1.json" > /tmp/openapi-base-v1.json; then
+          if git show "origin/${{ github.base_ref }}:contracts/openapi/openapi-v1.json" > /tmp/openapi-base-v1.json; then
             echo "found=true" >> "$GITHUB_OUTPUT"
           else
-            echo "::warning::No base OpenAPI contract found at docs/api/openapi-v1.json; skipping diff for this PR."
+            echo "::warning::No base OpenAPI contract found at contracts/openapi/openapi-v1.json; skipping diff for this PR."
             echo "found=false" >> "$GITHUB_OUTPUT"
           fi
 
@@ -57,7 +57,7 @@ jobs:
           --report /tmp/openapi-diff-report.json
           --mode "$OPENAPI_DIFF_MODE"
           --github-event "$GITHUB_EVENT_PATH"
-          --approval-registry docs/api/breaking-change-approvals.jsonl
+          --approval-registry contracts/openapi/breaking-change-approvals.jsonl
           --audit-output /tmp/openapi-bypass-audit.jsonl
 
       - name: Upload OpenAPI diff evidence

@@ -1205,15 +1205,20 @@ dev-squad/
 │   │   ├── incident-severity.md
 │   │   ├── break-glass-credentials.md
 │   │   ├── all-providers-down.md                # Simultaneous LLM provider outage
-│   │   ├── air-gapped-deployment.md             # Offline install, catalogue validation
-│   │   └── alerts/                              # One runbook per alert rule
+│   │   └── air-gapped-deployment.md             # Offline install, catalogue validation
 │   ├── adr/                                     # Architecture decision records
 │   ├── compliance/
 │   │   ├── dpa-template.md
 │   │   ├── soc2-control-matrix.md
 │   │   └── gdpr-erasure-procedure.md
 │   └── api/
-│       └── openapi-v1.yaml                      # Published API contract
+│       └── openapi-diff-gate.md                 # Human-readable API compatibility guidance
+├── contracts/
+│   └── openapi/
+│       └── openapi-v1.json                      # Published API contract
+├── operations/
+│   ├── alerts/                                  # Alertmanager rule artifacts
+│   └── dashboards/                              # Grafana dashboard artifacts
 ├── frontend/                                    # Vite + React + TypeScript (single app)
 │   ├── package.json
 │   ├── Dockerfile

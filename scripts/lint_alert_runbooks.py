@@ -54,7 +54,7 @@ def lint_alert_runbooks(alerts_dir: Path, runbooks_dir: Path) -> AlertRunbookRep
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--alerts-dir", default="docs/alerts")
+    parser.add_argument("--alerts-dir", default="operations/alerts")
     parser.add_argument("--runbooks-dir", default="docs/runbooks")
     args = parser.parse_args(argv)
 

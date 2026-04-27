@@ -9,7 +9,7 @@ from lint_alert_runbooks import lint_alert_runbooks, main
 
 
 def test_existing_paging_alerts_reference_existing_runbooks() -> None:
-    report = lint_alert_runbooks(Path("docs/alerts"), Path("docs/runbooks"))
+    report = lint_alert_runbooks(Path("operations/alerts"), Path("docs/runbooks"))
 
     assert report.passed is True
 

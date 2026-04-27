@@ -42,7 +42,7 @@ The admin experience MUST expose the operational surfaces needed to manage agent
 
 Every operator surface SHALL render data fetched from `/api/v1` rather than from local sample data. A feature flag SHALL allow temporary fallback to sample data for triage.
 
-Typed clients SHALL be generated from the OpenAPI document served at `/api/v1/openapi.json`. CI SHALL normalize that document to `docs/api/openapi-v1.json`, regenerate client types into `frontend/src/api/generated/`, and fail when tracked generated files differ. Feature containers SHALL call generated clients through `frontend/src/api/client.ts` so auth headers, tenant context, trace IDs, error normalization, and sample-data fallback are handled consistently.
+Typed clients SHALL be generated from the OpenAPI document served at `/api/v1/openapi.json`. CI SHALL normalize that document to `contracts/openapi/openapi-v1.json`, regenerate client types into `frontend/src/api/generated/`, and fail when tracked generated files differ. Feature containers SHALL call generated clients through `frontend/src/api/client.ts` so auth headers, tenant context, trace IDs, error normalization, and sample-data fallback are handled consistently.
 
 The generation contract SHALL use `openapi-typescript` unless an equivalent repository-standard generator is adopted in the follow-up implementation. Required scripts are `frontend:openapi:fetch`, `frontend:openapi:generate`, and `frontend:openapi:check`. Drift failure reason SHALL be `frontend_openapi_client_drift`; CI output SHALL list changed generated files and the OpenAPI source revision.
 

@@ -17,8 +17,8 @@ context: |
   - Use ASCII punctuation by default. Do not use em dashes or en dashes in prose, bullet lists, headings, commit messages, plans, or code comments. Always use the plain ASCII hyphen instead.
 
   Repository status:
-  - This repository is in early implementation. Executable backend and frontend slices now exist under backend/ and frontend/. Initial operator and status documentation now exists under docs/, while helm/ remains a scaffold and the archived OpenSpec changes record the implemented roadmap.
-  - Scaffold targets remain backend/ (FastAPI + ARQ + LangGraph), frontend/ (Vite + React + TypeScript), helm/ (Helm charts for connected and air_gapped profiles), and docs/.
+  - This repository is in early implementation. Executable backend and frontend slices now exist under backend/ and frontend/. Human-readable operator and status documentation now exists under docs/, machine-readable contracts live under contracts/, deployable operational artifacts live under operations/, and helm/ remains a scaffold.
+  - Scaffold targets remain backend/ (FastAPI + ARQ + LangGraph), frontend/ (Vite + React + TypeScript), helm/ (Helm charts for connected and air_gapped profiles), contracts/ (API contracts and approval registries), operations/ (alert rules and dashboards), and docs/.
   - Use uv for Python dependency management, environment synchronisation, and Python command execution.
   - Current backend commands from the repository root:
     - uv sync --project backend --dev

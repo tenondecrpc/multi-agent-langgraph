@@ -33,7 +33,9 @@ backend/        FastAPI app, LangGraph graph, ARQ workers
 frontend/       Admin and monitoring UI
 helm/           Helm charts for Kubernetes (connected and air-gapped)
 k8s/            Base Kubernetes manifests for local development
-docs/           Operator and integrator documentation
+contracts/      Machine-readable API contracts and approval registries
+operations/     Deployable operational artifacts such as alerts and dashboards
+docs/           Human-readable operator, integrator, and developer documentation
 openspec/       Spec-Driven Development artifacts (proposals, specs, tasks)
 ```
 
