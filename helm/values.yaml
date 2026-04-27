@@ -159,6 +159,7 @@ argoRollouts:
     enabled: false
 
 # Worker rollout configuration (mirrors API rollout strategy).
+# Worker HPA and PDB.
 worker:
   image:
     repository: langgraph-dev-squad/worker
@@ -186,8 +187,18 @@ worker:
         - pause:
             duration: 180
         - setWeight: 100
+  hpa:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilization: 75
+    targetMemoryUtilization: 80
+  pdb:
+    enabled: true
+    minAvailable: 1
 
 # Frontend blue/green rollout configuration.
+# Frontend HPA and PDB.
 frontend:
   image:
     repository: langgraph-dev-squad/frontend
@@ -213,6 +224,15 @@ frontend:
       steps:
         - pause:
             duration: 120
+  hpa:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 4
+    targetCPUUtilization: 70
+    targetMemoryUtilization: 80
+  pdb:
+    enabled: true
+    minAvailable: 1
 
 # Analysis templates for SLO-driven rollouts.
 analysis:
@@ -286,30 +306,6 @@ backend:
     enabled: true
     minReplicas: 2
     maxReplicas: 6
-    targetCPUUtilization: 70
-    targetMemoryUtilization: 80
-  pdb:
-    enabled: true
-    minAvailable: 1
-
-# Worker HPA and PDB.
-worker:
-  hpa:
-    enabled: true
-    minReplicas: 2
-    maxReplicas: 10
-    targetCPUUtilization: 75
-    targetMemoryUtilization: 80
-  pdb:
-    enabled: true
-    minAvailable: 1
-
-# Frontend HPA and PDB.
-frontend:
-  hpa:
-    enabled: true
-    minReplicas: 2
-    maxReplicas: 4
     targetCPUUtilization: 70
     targetMemoryUtilization: 80
   pdb:

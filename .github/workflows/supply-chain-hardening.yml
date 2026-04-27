@@ -233,6 +233,10 @@ jobs:
     needs: [secret-scan, dockerfile-lint, sbom-and-scan, frontend-scan, license-check]
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      id-token: write
+      packages: write
+      actions: read
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -255,10 +259,6 @@ jobs:
         with:
           image: "$BACKEND_IMAGE"
           registry-username: ${{ github.actor }}
-        permissions:
-          id-token: write
-          packages: write
-          actions: read
 
       - name: Attach SBOM to backend image
         run: |
@@ -281,10 +281,6 @@ jobs:
         with:
           image: "$FRONTEND_IMAGE"
           registry-username: ${{ github.actor }}
-        permissions:
-          id-token: write
-          packages: write
-          actions: read
 
       - name: Attach SBOM to frontend image
         run: |
