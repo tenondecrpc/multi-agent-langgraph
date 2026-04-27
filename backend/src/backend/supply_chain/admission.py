@@ -10,8 +10,10 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, Field
+
+from backend.security.auth import AuthContext, AuthRole, require_role
 
 
 class AdmissionExceptionCreate(BaseModel):
@@ -54,11 +56,18 @@ class AdmissionExceptionListResponse(BaseModel):
     total: int
 
 
-def build_admission_router() -> APIRouter:
+def build_admission_router(
+    *,
+    auth_policy: Depends | None = None,
+) -> APIRouter:
     router = APIRouter(prefix="/api/v1/admin/admission-exceptions", tags=["admission-exceptions"])
+    auth_dep = auth_policy or Depends(require_role(AuthRole.SUPER_ADMIN))
 
     @router.post("/", response_model=AdmissionExceptionResponse, status_code=201)
-    def create_exception(request: AdmissionExceptionCreate) -> AdmissionExceptionResponse:
+    def create_exception(
+        request: AdmissionExceptionCreate,
+        auth: AuthContext = auth_dep,
+    ) -> AdmissionExceptionResponse:
         now = datetime.now(UTC)
         if request.expires_at <= now:
             raise HTTPException(
@@ -93,22 +102,30 @@ def build_admission_router() -> APIRouter:
         tenant_id: str | None = None,
         policy_name: str | None = None,
         include_revoked: bool = False,
+        auth: AuthContext = auth_dep,
     ) -> AdmissionExceptionListResponse:
         return AdmissionExceptionListResponse(exceptions=[], total=0)
 
     @router.get("/{exception_id}", response_model=AdmissionExceptionResponse)
-    def get_exception(exception_id: str) -> AdmissionExceptionResponse:
+    def get_exception(
+        exception_id: str,
+        auth: AuthContext = auth_dep,
+    ) -> AdmissionExceptionResponse:
         raise HTTPException(status_code=404, detail=f"Exception {exception_id} not found")
 
     @router.post("/{exception_id}/revoke", response_model=AdmissionExceptionResponse)
     def revoke_exception(
         exception_id: str,
         request: AdmissionExceptionRevoke,
+        auth: AuthContext = auth_dep,
     ) -> AdmissionExceptionResponse:
         raise HTTPException(status_code=404, detail=f"Exception {exception_id} not found")
 
     @router.delete("/{exception_id}", status_code=204)
-    def delete_exception(exception_id: str) -> Response:
+    def delete_exception(
+        exception_id: str,
+        auth: AuthContext = auth_dep,
+    ) -> Response:
         raise HTTPException(status_code=404, detail=f"Exception {exception_id} not found")
 
     return router

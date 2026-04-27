@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
+from typing import Any
 
 from backend.governance.catalog import ModelCatalogEntry, RoleTokenPolicy
 
@@ -65,6 +66,7 @@ class PersistenceAdapters:
     encryption: EnvelopeCipher
     health: PersistenceHealthService
     checkpoint_saver: PostgresCheckpointSaverHandle | None = None
+    graph_store: Any | None = None
     telemetry: PersistenceTelemetry = field(default_factory=bootstrap_telemetry)
 
 
@@ -102,7 +104,7 @@ def build_in_memory_persistence() -> PersistenceAdapters:
             role_token_policies=_default_role_token_policies(),
         ),
         provider_health_store=InMemoryProviderHealthStore(),
-        webhook_guard=InMemoryWebhookGuard(secret="development-shared-secret"),
+        webhook_guard=InMemoryWebhookGuard(secret=_require_webhook_secret()),
         database=database,
         redis=redis,
         encryption=encryption,
@@ -115,6 +117,7 @@ def build_persistence_adapters() -> PersistenceAdapters:
     database = build_database_runtime()
     redis = build_redis_runtime()
     encryption = EnvelopeCipher.from_env()
+    _validate_encryption_configured(encryption)
     health = PersistenceHealthService(
         database_ready=database.configured,
         redis_ready=redis.configured,
@@ -175,6 +178,7 @@ def build_persistence_adapters() -> PersistenceAdapters:
         snapshot_broadcaster = build_snapshot_activation_broadcaster(redis.settings)
 
     checkpoint_saver = build_checkpoint_saver_handle(database_url)
+    graph_store = _build_graph_store(database_url)
     run_repository = build_run_repository(
         database_url=database_url,
         legacy_repository=None,
@@ -242,6 +246,7 @@ def build_persistence_adapters() -> PersistenceAdapters:
         encryption=encryption,
         health=health,
         checkpoint_saver=checkpoint_saver,
+        graph_store=graph_store,
         telemetry=telemetry,
     )
 
@@ -305,3 +310,27 @@ def _default_role_token_policies() -> list[RoleTokenPolicy]:
         RoleTokenPolicy(role="reviewer", max_input_tokens=10_000, max_output_tokens=3_000),
         RoleTokenPolicy(role="pr_creator", max_input_tokens=6_000, max_output_tokens=2_000),
     ]
+
+
+def _require_webhook_secret() -> str:
+    from .webhook import WebhookGuardSettings
+    settings = WebhookGuardSettings.from_env()
+    settings.validate_secret()
+    return settings.secret
+
+
+def _validate_encryption_configured(encryption: EnvelopeCipher) -> None:
+    if not encryption.configured:
+        raise RuntimeError(
+            "Encryption is not configured. Set BACKEND_ENCRYPTION_ACTIVE_KEY_ID and "
+            "BACKEND_ENCRYPTION_ACTIVE_WRAPPING_KEY environment variables."
+        )
+
+
+def _build_graph_store(database_url: str) -> Any | None:
+    """Build a PostgresStore for LangGraph graph memory."""
+    try:
+        from langgraph.store.postgres import PostgresStore
+        return PostgresStore.from_conn_string(database_url)
+    except ImportError:
+        return None

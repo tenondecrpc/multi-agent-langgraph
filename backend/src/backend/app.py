@@ -75,7 +75,11 @@ def create_app(
             telemetry=adapters.telemetry,
         ),
     )
-    runtime_workflow = workflow or RuntimeWorkflow(repository=adapters.run_repository)
+    runtime_workflow = workflow or RuntimeWorkflow(
+        repository=adapters.run_repository,
+        checkpointer=adapters.checkpoint_saver,
+        store=adapters.graph_store,
+    )
 
     system_router = APIRouter(tags=["system"])
     runtime_router = APIRouter(prefix="/api/v1/runtime", tags=["runtime"])

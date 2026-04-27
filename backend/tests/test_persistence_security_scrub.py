@@ -21,55 +21,57 @@ FORBIDDEN_LOG_TOKENS = {
 
 
 def test_envelope_cipher_can_rotate_and_scrub_secret_payloads() -> None:
+    from cryptography.fernet import Fernet
+
     cipher = EnvelopeCipher(
         provider="vault",
         configured=True,
         active_key_id="kek-v2",
-        active_wrapping_key="wrapping-v2",
+        active_fernet_key=Fernet.generate_key().decode(),
         previous_key_ids=["kek-v1"],
-        previous_wrapping_keys={"kek-v1": "wrapping-v1"},
+        previous_fernet_keys={"kek-v1": Fernet.generate_key().decode()},
     )
 
     first = cipher.encrypt("super-secret")
     rotated = cipher.rotate_ciphertext(
         first["ciphertext"],
         dek_id=first["dek_id"],
-        signature=first["signature"],
     )
     scrubbed = cipher.scrub_payload(
         {
-            "api_key": "plaintext",
+            "api_token": "plaintext",
             "nested": {"ciphertext": rotated["ciphertext"]},
         }
     )
 
-    assert cipher.decrypt(first["ciphertext"], dek_id=first["dek_id"], signature=first["signature"]) == "super-secret"
+    assert cipher.decrypt(first["ciphertext"], dek_id=first["dek_id"]) == "super-secret"
     assert rotated["dek_id"] == "kek-v2"
-    assert scrubbed["api_key"] == "***redacted***"
+    assert scrubbed["api_token"] == "***redacted***"
     assert scrubbed["nested"]["ciphertext"] == "***redacted***"
     assert cipher.decrypt(
         rotated["ciphertext"],
         dek_id=rotated["dek_id"],
-        signature=rotated["signature"],
     ) == "super-secret"
 
 
 def test_encryption_rotation_job_rewraps_stale_envelopes_and_updates_sla_metrics() -> None:
+    from cryptography.fernet import Fernet
+
     persistence = build_in_memory_persistence()
     persistence.encryption = EnvelopeCipher(
         provider="vault",
         configured=True,
         active_key_id="kek-v2",
-        active_wrapping_key="wrapping-v2",
+        active_fernet_key=Fernet.generate_key().decode(),
         previous_key_ids=["kek-v1"],
-        previous_wrapping_keys={"kek-v1": "wrapping-v1"},
+        previous_fernet_keys={"kek-v1": Fernet.generate_key().decode()},
         rotation_sla_days=30,
     )
     stale = EnvelopeCipher(
         provider="vault",
         configured=True,
         active_key_id="kek-v1",
-        active_wrapping_key="wrapping-v1",
+        active_fernet_key=persistence.encryption.previous_fernet_keys["kek-v1"],
     ).encrypt(
         "expired-secret",
         issued_at=datetime.now(tz=UTC) - timedelta(days=31),
@@ -81,7 +83,6 @@ def test_encryption_rotation_job_rewraps_stale_envelopes_and_updates_sla_metrics
     assert persistence.encryption.decrypt(
         rotated[0]["ciphertext"],
         dek_id=rotated[0]["dek_id"],
-        signature=rotated[0]["signature"],
     ) == "expired-secret"
     metrics = persistence.telemetry.render_prometheus()
     assert "devsquad_encryption_rotation_due_total 1.0" in metrics

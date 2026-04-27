@@ -6,7 +6,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Annotated
 from uuid import uuid4
 
-from fastapi import APIRouter, Header, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from pydantic import BaseModel
 from sqlalchemy import Engine, create_engine, delete, select, update
 
@@ -18,6 +18,7 @@ from backend.persistence.schema import (
     tenant_delete_events,
 )
 from backend.persistence.telemetry import bootstrap_telemetry
+from backend.security.auth import AuthContext, AuthRole, require_role
 
 logger = logging.getLogger(__name__)
 
@@ -56,14 +57,20 @@ def _get_engine(database_url: str) -> Engine:
     return create_engine(database_url, future=True, pool_pre_ping=True)
 
 
-def build_data_retention_router(database_url: str) -> APIRouter:
+def build_data_retention_router(
+    database_url: str,
+    *,
+    auth_policy: Depends | None = None,
+) -> APIRouter:
     router = APIRouter(prefix="/api/v1/admin/data-retention", tags=["data-retention"])
     telemetry = bootstrap_telemetry()
+    auth_dep = auth_policy or Depends(require_role(AuthRole.ADMIN))
 
     @router.get("/policies")
     def list_retention_policies(
         tenant_id: str | None = None,
         surface: str | None = None,
+        auth: AuthContext = auth_dep,
     ) -> list[dict]:
         engine = _get_engine(database_url)
         with engine.begin() as connection:
@@ -76,7 +83,10 @@ def build_data_retention_router(database_url: str) -> APIRouter:
         return [dict(row) for row in rows]
 
     @router.post("/policies", status_code=status.HTTP_201_CREATED)
-    def create_retention_policy(policy: RetentionPolicyCreate) -> dict:
+    def create_retention_policy(
+        policy: RetentionPolicyCreate,
+        auth: AuthContext = auth_dep,
+    ) -> dict:
         import uuid
 
         engine = _get_engine(database_url)
@@ -101,7 +111,8 @@ def build_data_retention_router(database_url: str) -> APIRouter:
     def execute_retention_run(
         surface: str,
         tenant_id: str,
-        mode: str = Query("dry_run", regex="^(dry_run|enforce)$"),
+        mode: str = Query("dry_run", pattern="^(dry_run|enforce)$"),
+        auth: AuthContext = auth_dep,
     ) -> dict:
 
         from datetime import datetime
@@ -206,6 +217,7 @@ def build_data_retention_router(database_url: str) -> APIRouter:
         surface: str | None = None,
         tenant_id: str | None = None,
         limit: int = Query(50, le=200),
+        auth: AuthContext = auth_dep,
     ) -> list[dict]:
         engine = _get_engine(database_url)
         with engine.begin() as connection:
@@ -221,6 +233,7 @@ def build_data_retention_router(database_url: str) -> APIRouter:
     def request_tenant_delete(
         request: TenantDeleteRequest,
         x_actor: Annotated[str, Header(alias="X-Actor")],
+        auth: AuthContext = auth_dep,
     ) -> dict:
         import uuid
 
@@ -256,6 +269,7 @@ def build_data_retention_router(database_url: str) -> APIRouter:
     def approve_tenant_delete(
         approval: TenantDeleteApproval,
         x_actor: Annotated[str, Header(alias="X-Actor")],
+        auth: AuthContext = auth_dep,
     ) -> dict:
         from datetime import datetime
 
@@ -306,6 +320,7 @@ def build_data_retention_router(database_url: str) -> APIRouter:
     def execute_tenant_delete(
         event_id: str,
         x_actor: Annotated[str, Header(alias="X-Actor")],
+        auth: AuthContext = auth_dep,
     ) -> dict:
         from datetime import datetime
 
@@ -362,6 +377,7 @@ def build_data_retention_router(database_url: str) -> APIRouter:
     def list_tenant_delete_events(
         tenant_id: str | None = None,
         status_filter: str | None = None,
+        auth: AuthContext = auth_dep,
     ) -> list[dict]:
         engine = _get_engine(database_url)
         with engine.begin() as connection:
@@ -376,6 +392,7 @@ def build_data_retention_router(database_url: str) -> APIRouter:
     @router.post("/dpa/publish", status_code=status.HTTP_201_CREATED)
     def publish_dpa_version(
         publication: DpaPublication,
+        auth: AuthContext = auth_dep,
     ) -> dict:
         import hashlib
         from datetime import datetime
@@ -403,6 +420,7 @@ def build_data_retention_router(database_url: str) -> APIRouter:
     @router.post("/dpa/acknowledge", status_code=status.HTTP_201_CREATED)
     def acknowledge_dpa(
         ack: DpaAcknowledgement,
+        auth: AuthContext = auth_dep,
     ) -> dict:
         import uuid
 
@@ -434,6 +452,7 @@ def build_data_retention_router(database_url: str) -> APIRouter:
     @router.get("/dpa/status")
     def get_dpa_status(
         tenant_id: str,
+        auth: AuthContext = auth_dep,
     ) -> dict:
         from datetime import datetime
 
@@ -468,7 +487,9 @@ def build_data_retention_router(database_url: str) -> APIRouter:
             }
 
     @router.get("/dpa")
-    def list_dpa_versions() -> list[dict]:
+    def list_dpa_versions(
+        auth: AuthContext = auth_dep,
+    ) -> list[dict]:
         engine = _get_engine(database_url)
         with engine.begin() as connection:
             rows = connection.execute(

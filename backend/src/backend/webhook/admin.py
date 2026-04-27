@@ -6,10 +6,11 @@ from datetime import UTC, datetime, timedelta
 from typing import Annotated
 from uuid import uuid4
 
-from fastapi import APIRouter, Header, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from pydantic import BaseModel
 
 from backend.persistence.webhook import SqlAlchemyWebhookIdempotencyStore
+from backend.security.auth import AuthContext, AuthRole, require_role
 
 logger = logging.getLogger(__name__)
 
@@ -41,13 +42,18 @@ class AllowlistResponse(BaseModel):
     cidrs: list[str]
 
 
-def build_webhook_admin_router() -> APIRouter:
+def build_webhook_admin_router(
+    *,
+    auth_policy: Depends | None = None,
+) -> APIRouter:
     router = APIRouter(prefix="/api/v1/admin/webhook", tags=["webhook-admin"])
+    auth_dep = auth_policy or Depends(require_role(AuthRole.ADMIN))
 
     @router.post("/rotate-secret", status_code=status.HTTP_201_CREATED)
     def rotate_secret(
         request: SecretRotationRequest,
         x_actor: Annotated[str, Header(alias="X-Actor")],
+        auth: AuthContext = auth_dep,
     ) -> SecretRotationResponse:
         from backend.persistence.factory import build_persistence_adapters
 
@@ -91,6 +97,7 @@ def build_webhook_admin_router() -> APIRouter:
     def get_rotation_status(
         tenant_id: str,
         team_id: str,
+        auth: AuthContext = auth_dep,
     ) -> dict:
         from backend.persistence.factory import build_persistence_adapters
 
@@ -120,6 +127,7 @@ def build_webhook_admin_router() -> APIRouter:
     def update_ip_allowlist(
         request: AllowlistUpdateRequest,
         x_actor: Annotated[str, Header(alias="X-Actor")],
+        auth: AuthContext = auth_dep,
     ) -> AllowlistResponse:
         import ipaddress
 
@@ -152,6 +160,7 @@ def build_webhook_admin_router() -> APIRouter:
     def get_ip_allowlist(
         tenant_id: str,
         team_id: str,
+        auth: AuthContext = auth_dep,
     ) -> AllowlistResponse:
         return AllowlistResponse(
             tenant_id=tenant_id,
@@ -164,6 +173,7 @@ def build_webhook_admin_router() -> APIRouter:
         tenant_id: str,
         ticket_key: str | None = None,
         limit: int = Query(50, le=200),
+        auth: AuthContext = auth_dep,
     ) -> list[dict]:
         from sqlalchemy import select as sa_select
 

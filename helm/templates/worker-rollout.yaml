@@ -26,6 +26,13 @@ spec:
         component: worker
     spec:
       serviceAccountName: dev-squad-worker
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: dev-squad-worker
       containers:
         - name: worker
           image: "{{ .Values.worker.image.repository }}:{{ .Values.worker.image.tag }}"
@@ -47,11 +54,45 @@ spec:
               value: "{{ .Values.database.poolSize }}"
             - name: BACKEND_DATABASE_STATEMENT_TIMEOUT_MS
               value: "{{ .Values.database.statementTimeoutMs }}"
+            - name: BACKEND_ENCRYPTION_PROVIDER
+              value: "{{ .Values.encryption.provider }}"
+            - name: BACKEND_ENCRYPTION_ACTIVE_KEY_ID
+              value: "{{ .Values.encryption.activeKeyId }}"
+            - name: BACKEND_ENCRYPTION_ACTIVE_WRAPPING_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.encryption.wrappingSecretName }}
+                  key: {{ .Values.encryption.wrappingKeyKey }}
+            - name: BACKEND_ENCRYPTION_PREVIOUS_KEY_IDS
+              value: "{{ .Values.encryption.previousKeyIds }}"
+            {{- if .Values.langsmith.enabled }}
+            - name: LANGCHAIN_TRACING_V2
+              value: "true"
+            - name: LANGSMITH_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.langsmith.secretName }}
+                  key: {{ .Values.langsmith.apiKeySecretKey }}
+            - name: LANGSMITH_PROJECT
+              value: "{{ .Values.langsmith.project }}"
+            {{- end }}
+            - name: INTERNAL_RAG_ENABLED
+              value: "{{ .Values.internalRag.enabled }}"
+            - name: INTERNAL_RAG_EMBEDDING_ENDPOINT
+              value: "{{ .Values.internalRag.embeddingEndpoint }}"
+            - name: GITHUB_APP_ID
+              value: "{{ .Values.github.appId }}"
+            - name: GITHUB_BRANCH_PROTECTION_ENFORCE
+              value: "{{ .Values.github.branchProtectionEnforce }}"
           resources:
             requests:
-              cpu: 250m
-              memory: 512Mi
+              cpu: {{ .Values.worker.resources.requests.cpu }}
+              memory: {{ .Values.worker.resources.requests.memory }}
             limits:
-              cpu: "1"
-              memory: 1Gi
+              cpu: {{ .Values.worker.resources.limits.cpu }}
+              memory: {{ .Values.worker.resources.limits.memory }}
+          securityContext:
+            runAsNonRoot: true
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
 {{- end }}

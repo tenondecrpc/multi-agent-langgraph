@@ -8,6 +8,15 @@ from fastapi.testclient import TestClient
 
 from backend.app import create_app
 
+_AUTH_HEADERS = {
+    "X-Subject": "test-admin",
+    "X-Tenant-Id": "tenant-1",
+    "X-Team-Id": "team-1",
+    "X-Role": "super-admin",
+    "X-Session": "test-session",
+    "X-Expires": "9999999999",
+}
+
 
 def _client() -> TestClient:
     return TestClient(create_app())
@@ -28,6 +37,7 @@ class TestAdmissionExceptionCreate:
                 "second_approver": "admin-2",
                 "expires_at": future.isoformat(),
             },
+            headers=_AUTH_HEADERS,
         )
         assert response.status_code == 201
         data = response.json()
@@ -52,6 +62,7 @@ class TestAdmissionExceptionCreate:
                 "second_approver": "admin-2",
                 "expires_at": past.isoformat(),
             },
+            headers=_AUTH_HEADERS,
         )
         assert response.status_code == 400
         assert "expires_at must be in the future" in response.json()["detail"]
@@ -70,6 +81,7 @@ class TestAdmissionExceptionCreate:
                 "second_approver": "admin-1",
                 "expires_at": future.isoformat(),
             },
+            headers=_AUTH_HEADERS,
         )
         assert response.status_code == 400
         assert "second_approver must be different" in response.json()["detail"]
@@ -77,7 +89,7 @@ class TestAdmissionExceptionCreate:
 
 class TestAdmissionExceptionList:
     def test_list_exceptions_returns_empty_by_default(self) -> None:
-        response = _client().get("/api/v1/admin/admission-exceptions/")
+        response = _client().get("/api/v1/admin/admission-exceptions/", headers=_AUTH_HEADERS)
         assert response.status_code == 200
         data = response.json()
         assert data["exceptions"] == []
@@ -87,13 +99,14 @@ class TestAdmissionExceptionList:
         response = _client().get(
             "/api/v1/admin/admission-exceptions/",
             params={"tenant_id": "tenant-1"},
+            headers=_AUTH_HEADERS,
         )
         assert response.status_code == 200
 
 
 class TestAdmissionExceptionGet:
     def test_get_nonexistent_exception_returns_404(self) -> None:
-        response = _client().get("/api/v1/admin/admission-exceptions/exc-nonexistent")
+        response = _client().get("/api/v1/admin/admission-exceptions/exc-nonexistent", headers=_AUTH_HEADERS)
         assert response.status_code == 404
 
 
@@ -102,11 +115,12 @@ class TestAdmissionExceptionRevoke:
         response = _client().post(
             "/api/v1/admin/admission-exceptions/exc-nonexistent/revoke",
             json={"revoked_by": "admin-1", "revoke_reason": "test"},
+            headers=_AUTH_HEADERS,
         )
         assert response.status_code == 404
 
 
 class TestAdmissionExceptionDelete:
     def test_delete_nonexistent_exception_returns_404(self) -> None:
-        response = _client().delete("/api/v1/admin/admission-exceptions/exc-nonexistent")
+        response = _client().delete("/api/v1/admin/admission-exceptions/exc-nonexistent", headers=_AUTH_HEADERS)
         assert response.status_code == 404

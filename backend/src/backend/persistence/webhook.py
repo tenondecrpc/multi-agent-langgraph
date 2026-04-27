@@ -54,7 +54,7 @@ return 0
 
 class WebhookGuardSettings(BaseModel):
     mode: Literal["legacy", "shadow", "postgres_redis"] = "legacy"
-    secret: str = "development-shared-secret"
+    secret: str = ""
     freshness_window_seconds: int = 300
     per_minute_limit: int = 3
     per_ticket_flood_limit: int = 20
@@ -65,12 +65,19 @@ class WebhookGuardSettings(BaseModel):
     def from_env(cls) -> WebhookGuardSettings:
         return cls(
             mode=os.getenv(WEBHOOK_GUARD_MODE_ENV_KEY, "legacy"),
-            secret=_first_env(WEBHOOK_SHARED_SECRET_ENV_KEYS, "development-shared-secret"),
+            secret=_first_env(WEBHOOK_SHARED_SECRET_ENV_KEYS, ""),
             freshness_window_seconds=_int_env(WEBHOOK_FRESHNESS_WINDOW_ENV_KEY, 300),
             per_minute_limit=_int_env(WEBHOOK_PER_MINUTE_LIMIT_ENV_KEY, 3),
             per_ticket_flood_limit=_int_env(WEBHOOK_PER_TICKET_FLOOD_LIMIT_ENV_KEY, 20),
             rotation_overlap_hours=_int_env(WEBHOOK_ROTATION_OVERLAP_HOURS_ENV_KEY, 24),
         )
+
+    def validate_secret(self) -> None:
+        if not self.secret:
+            raise RuntimeError(
+                "Webhook shared secret is not configured. Set BACKEND_WEBHOOK_SHARED_SECRET "
+                "or BACKEND_WEBHOOK_SECRET environment variable."
+            )
 
 
 class SqlAlchemyWebhookIdempotencyStore:

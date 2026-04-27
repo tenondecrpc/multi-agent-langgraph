@@ -11,7 +11,7 @@ llm:
 
 image:
   repository: langgraph-dev-squad/backend
-  tag: latest
+  tag: "0.1.0"
   pullPolicy: IfNotPresent
 
 service:
@@ -162,9 +162,16 @@ argoRollouts:
 worker:
   image:
     repository: langgraph-dev-squad/worker
-    tag: latest
+    tag: "0.1.0"
     pullPolicy: IfNotPresent
   replicas: 2
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
   rollout:
     enabled: true
     strategy:
@@ -184,9 +191,16 @@ worker:
 frontend:
   image:
     repository: langgraph-dev-squad/frontend
-    tag: latest
+    tag: "0.1.0"
     pullPolicy: IfNotPresent
   replicas: 2
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: "500m"
+      memory: 256Mi
   service:
     port: 3000
   rollout:
@@ -258,3 +272,50 @@ featureFlags:
       owner: "runtime-pipeline"
       description: "Global kill switch for ticket processing"
   staleFlagDays: 90
+
+# Backend resource governance.
+backend:
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+  hpa:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 6
+    targetCPUUtilization: 70
+    targetMemoryUtilization: 80
+  pdb:
+    enabled: true
+    minAvailable: 1
+
+# Worker HPA and PDB.
+worker:
+  hpa:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilization: 75
+    targetMemoryUtilization: 80
+  pdb:
+    enabled: true
+    minAvailable: 1
+
+# Frontend HPA and PDB.
+frontend:
+  hpa:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 4
+    targetCPUUtilization: 70
+    targetMemoryUtilization: 80
+  pdb:
+    enabled: true
+    minAvailable: 1
+
+# Vault server URL (parameterized for ESO).
+vault:
+  server: "https://vault.example.internal"

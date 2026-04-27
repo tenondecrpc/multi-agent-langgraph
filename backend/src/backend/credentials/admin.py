@@ -4,7 +4,7 @@ import logging
 from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
-from fastapi import APIRouter, Header, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy import Engine, create_engine, select, update
 
@@ -14,6 +14,7 @@ from backend.persistence.schema import (
     kek_versions,
 )
 from backend.persistence.telemetry import bootstrap_telemetry
+from backend.security.auth import AuthContext, AuthRole, require_role
 
 logger = logging.getLogger(__name__)
 
@@ -76,14 +77,20 @@ def _get_engine(database_url: str) -> Engine:
     return create_engine(database_url, future=True, pool_pre_ping=True)
 
 
-def build_credential_rotation_router(database_url: str) -> APIRouter:
+def build_credential_rotation_router(
+    database_url: str,
+    *,
+    auth_policy: Depends | None = None,
+) -> APIRouter:
     router = APIRouter(prefix="/api/v1/admin/credentials", tags=["credential-rotation"])
     telemetry = bootstrap_telemetry()
+    auth_dep = auth_policy or Depends(require_role(AuthRole.ADMIN))
 
     @router.get("/rotation-schedule")
     def list_rotation_schedule(
         tenant_id: str | None = None,
         overdue_only: bool = False,
+        auth: AuthContext = auth_dep,
     ) -> list[dict]:
         engine = _get_engine(database_url)
         with engine.begin() as connection:
@@ -104,6 +111,7 @@ def build_credential_rotation_router(database_url: str) -> APIRouter:
         credential_kind: str,
         credential_id: str,
         rotation_sla_days: int = 90,
+        auth: AuthContext = auth_dep,
     ) -> dict:
         import uuid
         from datetime import UTC, datetime
@@ -141,7 +149,9 @@ def build_credential_rotation_router(database_url: str) -> APIRouter:
         }
 
     @router.post("/rotation-schedule/evaluate")
-    def evaluate_rotation_schedule() -> dict:
+    def evaluate_rotation_schedule(
+        auth: AuthContext = auth_dep,
+    ) -> dict:
         engine = _get_engine(database_url)
         now = datetime.now(tz=UTC)
         warning_count = 0
@@ -199,6 +209,7 @@ def build_credential_rotation_router(database_url: str) -> APIRouter:
     def check_blocking_status(
         tenant_id: str,
         team_id: str,
+        auth: AuthContext = auth_dep,
     ) -> dict:
         engine = _get_engine(database_url)
         with engine.begin() as connection:
@@ -228,6 +239,7 @@ def build_credential_rotation_router(database_url: str) -> APIRouter:
     def request_break_glass(
         request: BreakGlassRequest,
         x_actor: Annotated[str, Header(alias="X-Actor")],
+        auth: AuthContext = auth_dep,
     ) -> dict:
         import uuid
         from datetime import UTC, datetime
@@ -268,6 +280,7 @@ def build_credential_rotation_router(database_url: str) -> APIRouter:
     def approve_break_glass(
         approval: BreakGlassApproval,
         x_actor: Annotated[str, Header(alias="X-Actor")],
+        auth: AuthContext = auth_dep,
     ) -> dict:
         from datetime import UTC, datetime
 
@@ -324,6 +337,7 @@ def build_credential_rotation_router(database_url: str) -> APIRouter:
         grant_id: str,
         reason: str,
         x_actor: Annotated[str, Header(alias="X-Actor")],
+        auth: AuthContext = auth_dep,
     ) -> dict:
         from datetime import UTC, datetime
 
@@ -357,6 +371,7 @@ def build_credential_rotation_router(database_url: str) -> APIRouter:
     def list_break_glass_grants(
         tenant_id: str | None = None,
         active_only: bool = False,
+        auth: AuthContext = auth_dep,
     ) -> list[dict]:
         from datetime import UTC, datetime
 
@@ -410,6 +425,7 @@ def build_credential_rotation_router(database_url: str) -> APIRouter:
     @router.post("/kek/introduce", status_code=status.HTTP_201_CREATED)
     def introduce_kek(
         request: KekIntroduction,
+        auth: AuthContext = auth_dep,
     ) -> dict:
         from datetime import UTC, datetime
 
@@ -436,6 +452,7 @@ def build_credential_rotation_router(database_url: str) -> APIRouter:
     def rotate_kek_default(
         new_kek_id: str,
         x_actor: Annotated[str, Header(alias="X-Actor")],
+        auth: AuthContext = auth_dep,
     ) -> dict:
 
         engine = _get_engine(database_url)
@@ -475,6 +492,7 @@ def build_credential_rotation_router(database_url: str) -> APIRouter:
     def retire_kek(
         kek_id: str,
         x_actor: Annotated[str, Header(alias="X-Actor")],
+        auth: AuthContext = auth_dep,
     ) -> dict:
         from datetime import UTC, datetime
 

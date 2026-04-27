@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from cryptography.fernet import Fernet
 
 from backend.persistence.encryption import EnvelopeCipher
 
@@ -11,9 +12,9 @@ from backend.persistence.encryption import EnvelopeCipher
 def cipher():
     return EnvelopeCipher(
         active_key_id="kek-v1",
-        active_wrapping_key="test-wrapping-key-v1",
+        active_fernet_key=Fernet.generate_key().decode(),
         previous_key_ids=["kek-v0"],
-        previous_wrapping_keys={"kek-v0": "test-wrapping-key-v0"},
+        previous_fernet_keys={"kek-v0": Fernet.generate_key().decode()},
         rotation_sla_days=90,
     )
 
@@ -30,30 +31,23 @@ class TestEnvelopeCipherDualRead:
         decrypted = cipher.decrypt(
             envelope["ciphertext"],
             dek_id=envelope["dek_id"],
-            signature=envelope["signature"],
         )
         assert decrypted == plaintext
 
     def test_decrypt_with_previous_key(self, cipher):
         plaintext = "my-secret-value"
-        import base64
-        import hmac
+        previous_fernet = Fernet(cipher.previous_fernet_keys["kek-v0"].encode())
+        ciphertext_bytes = previous_fernet.encrypt(plaintext.encode("utf-8"))
+        ciphertext = f"v2::{ciphertext_bytes.decode('utf-8')}"
 
-        wrapping_key = "test-wrapping-key-v0"
-        payload = base64.urlsafe_b64encode(plaintext.encode("utf-8")).decode("ascii")
-        signature = hmac.new(
-            wrapping_key.encode("utf-8"),
-            plaintext.encode("utf-8"),
-            "sha256",
-        ).hexdigest()
-        ciphertext = f"enc::{payload}"
-
-        decrypted = cipher.decrypt(ciphertext, dek_id="kek-v0", signature=signature)
+        decrypted = cipher.decrypt(ciphertext, dek_id="kek-v0")
         assert decrypted == plaintext
 
-    def test_decrypt_wrong_signature_rejected(self, cipher):
-        with pytest.raises(ValueError, match="Ciphertext signature mismatch"):
-            cipher.decrypt("enc::dGVzdA==", dek_id="kek-v1", signature="wrong-signature")
+    def test_decrypt_fails_with_unknown_key_id(self, cipher):
+        fernet = Fernet(cipher.active_fernet_key.encode())
+        ciphertext = f"v2::{fernet.encrypt(b'test').decode()}"
+        with pytest.raises(ValueError, match="No wrapping key found"):
+            cipher.decrypt(ciphertext, dek_id="unknown-key")
 
 
 class TestRotationSLA:

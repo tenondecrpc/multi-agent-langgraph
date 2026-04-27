@@ -4,6 +4,7 @@ from collections.abc import Mapping
 from datetime import UTC, datetime
 from enum import StrEnum
 
+from fastapi import Depends, Header, HTTPException, Request
 from pydantic import BaseModel, Field
 
 
@@ -93,3 +94,45 @@ class AuthorizationPolicy:
                 return AuthorizationDecision(allowed=False, reason="team_scope_violation")
 
         return AuthorizationDecision(allowed=True)
+
+
+def require_role(minimum_role: AuthRole):
+    def _get_auth_context(
+        request: Request,
+        x_tenant_id: str = Header(alias="X-Tenant-Id", default=""),
+        x_team_id: str = Header(alias="X-Team-Id", default=""),
+        x_role: str = Header(alias="X-Role", default="viewer"),
+        x_subject: str = Header(alias="X-Subject", default=""),
+        x_session: str = Header(alias="X-Session", default=""),
+        x_expires: str = Header(alias="X-Expires", default=""),
+    ) -> AuthContext:
+        if not x_subject:
+            raise HTTPException(status_code=401, detail="missing_subject")
+        if not x_tenant_id:
+            raise HTTPException(status_code=401, detail="missing_tenant")
+        try:
+            role = AuthRole(x_role)
+        except ValueError:
+            role = AuthRole.VIEWER
+        try:
+            expires_at = datetime.fromtimestamp(int(x_expires), tz=UTC)
+        except (ValueError, TypeError):
+            expires_at = datetime.now(tz=UTC)
+        return AuthContext(
+            subject_id=x_subject,
+            tenant_id=x_tenant_id,
+            team_ids=[x_team_id] if x_team_id else [],
+            role=role,
+            session_id=x_session,
+            expires_at=expires_at,
+        )
+
+    def _check_role(auth_context: AuthContext = Depends(_get_auth_context)) -> AuthContext:  # noqa: B008
+        if ROLE_RANK.get(auth_context.role, 0) < ROLE_RANK.get(minimum_role, 0):
+            raise HTTPException(
+                status_code=403,
+                detail=f"insufficient_role: requires {minimum_role.value}, got {auth_context.role.value}",
+            )
+        return auth_context
+
+    return _check_role

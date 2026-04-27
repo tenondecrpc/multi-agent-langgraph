@@ -1,8 +1,10 @@
 from __future__ import annotations
 
-from typing import TypedDict
+from typing import Any, TypedDict
 
+from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph import END, START, StateGraph
+from langgraph.store.base import BaseStore
 
 from backend.integrations.github.branch_protection import (
     BranchProtectionConfig,
@@ -43,6 +45,8 @@ class RuntimeWorkflow:
         repository: RunRepository | None = None,
         branch_protection_verifier: BranchProtectionVerifier | None = None,
         branch_protection_config: BranchProtectionConfig | None = None,
+        checkpointer: BaseCheckpointSaver | None = None,
+        store: BaseStore | None = None,
     ) -> None:
         self.constitution_loader = constitution_loader or StaticConstitutionLoader()
         self.planner = planner or RuleBasedPlannerArtifactService()
@@ -58,6 +62,8 @@ class RuntimeWorkflow:
             require_signed_commits=False,
             require_linear_history=False,
         )
+        self._checkpointer = checkpointer
+        self._store = store
         self.graph = self._build_graph()
 
     def execute(
@@ -72,13 +78,15 @@ class RuntimeWorkflow:
         self.repository.validate_escalation_sinks(sinks)
 
         run = TicketRunState.new(planning_request)
+        thread_id = f"{run.tenant_id}:{run.ticket_key}:{run.run_id}"
         state: WorkflowState = {
             "planning_request": planning_request,
             "execution_request": execution,
             "escalation_sinks": sinks,
             "run": run,
         }
-        result = self.graph.invoke(state)
+        config: dict[str, Any] = {"configurable": {"thread_id": thread_id}}
+        result = self.graph.invoke(state, config=config)
         final_run = self.repository.save(result["run"])
         return final_run
 
@@ -174,7 +182,10 @@ class RuntimeWorkflow:
             {"complete": END, "escalate": "escalate"},
         )
         workflow.add_edge("escalate", END)
-        return workflow.compile()
+        return workflow.compile(
+            checkpointer=self._checkpointer,
+            store=self._store,
+        )
 
     def _load_constitution(self, state: WorkflowState) -> dict[str, TicketRunState]:
         run = state["run"]
