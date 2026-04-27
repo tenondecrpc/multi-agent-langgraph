@@ -229,8 +229,42 @@ jobs:
         run: |
           python scripts/check_license_allowlist.py frontend-licenses.json .github/license-allowlist.json
 
+  backend-slsa-provenance:
+    needs: [secret-scan, dockerfile-lint, sbom-and-scan]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      id-token: write
+      packages: write
+      actions: read
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2
+    with:
+      dockerfile: backend/Dockerfile
+      context-path: backend/
+      image: ghcr.io/${{ github.repository }}/backend
+      registry-username: ${{ github.actor }}
+    secrets:
+      registry-password: ${{ secrets.GITHUB_TOKEN }}
+
+  frontend-slsa-provenance:
+    needs: [secret-scan, dockerfile-lint, frontend-scan]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      id-token: write
+      packages: write
+      actions: read
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2
+    with:
+      dockerfile: frontend/Dockerfile
+      context-path: frontend/
+      image: ghcr.io/${{ github.repository }}/frontend
+      registry-username: ${{ github.actor }}
+    secrets:
+      registry-password: ${{ secrets.GITHUB_TOKEN }}
+
   image-signing:
-    needs: [secret-scan, dockerfile-lint, sbom-and-scan, frontend-scan, license-check]
+    needs: [backend-slsa-provenance, frontend-slsa-provenance, license-check]
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
@@ -244,45 +278,39 @@ jobs:
       - name: Set up cosign
         uses: sigstore/cosign-installer@v3
 
-      - name: Build backend image
-        run: |
-          IMAGE_TAG="ghcr.io/${{ github.repository }}/backend:${{ github.sha }}"
-          docker build -t "$IMAGE_TAG" -f backend/Dockerfile backend/
-          echo "BACKEND_IMAGE=$IMAGE_TAG" >> "$GITHUB_ENV"
+      - name: Download backend SBOM
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-sbom
+
+      - name: Download frontend SBOM
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-sbom
 
       - name: Sign backend image with cosign keyless
+        env:
+          BACKEND_IMAGE: "ghcr.io/${{ github.repository }}/backend:${{ github.sha }}"
         run: |
           cosign sign --yes "$BACKEND_IMAGE"
 
-      - name: Generate SLSA Level 3 provenance for backend
-        uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2
-        with:
-          image: "$BACKEND_IMAGE"
-          registry-username: ${{ github.actor }}
-
       - name: Attach SBOM to backend image
+        env:
+          BACKEND_IMAGE: "ghcr.io/${{ github.repository }}/backend:${{ github.sha }}"
         run: |
           cosign attach sbom "$BACKEND_IMAGE" \
             --sbom backend-sbom.spdx.json \
             --sbom-type spdxjson
 
-      - name: Build frontend image
-        run: |
-          IMAGE_TAG="ghcr.io/${{ github.repository }}/frontend:${{ github.sha }}"
-          docker build -t "$IMAGE_TAG" -f frontend/Dockerfile frontend/
-          echo "FRONTEND_IMAGE=$IMAGE_TAG" >> "$GITHUB_ENV"
-
       - name: Sign frontend image with cosign keyless
+        env:
+          FRONTEND_IMAGE: "ghcr.io/${{ github.repository }}/frontend:${{ github.sha }}"
         run: |
           cosign sign --yes "$FRONTEND_IMAGE"
 
-      - name: Generate SLSA Level 3 provenance for frontend
-        uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2
-        with:
-          image: "$FRONTEND_IMAGE"
-          registry-username: ${{ github.actor }}
-
       - name: Attach SBOM to frontend image
+        env:
+          FRONTEND_IMAGE: "ghcr.io/${{ github.repository }}/frontend:${{ github.sha }}"
         run: |
           cosign attach sbom "$FRONTEND_IMAGE" \
             --sbom frontend-sbom.spdx.json \
