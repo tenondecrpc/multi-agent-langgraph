@@ -1,0 +1,310 @@
+<mxfile host="app.diagrams.net" modified="2026-04-27T00:00:00.000Z" agent="5.0" version="24.0.0" type="device">
+  <diagram id="langgraph-dev-squad-arch" name="LangGraph Dev Squad - Architecture">
+    <mxGraphModel dx="1920" dy="1080" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="1200" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- ==================== TITLE ==================== -->
+        <mxCell id="title" value="LangGraph Dev Squad - System Architecture" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=22;fontStyle=1;fontColor=#1a1a2e;" parent="1" vertex="1">
+          <mxGeometry x="550" y="20" width="500" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- ==================== SWIMLANES / ZONES ==================== -->
+
+        <!-- External Services Zone -->
+        <mxCell id="zone-external" value="External Services" style="rounded=1;arcSize=10;dashed=1;strokeColor=#6c5ce7;fillColor=#f8f7ff;strokeWidth=2;fontSize=14;fontStyle=1;fontColor=#6c5ce7;verticalAlign=top;spacingTop=8;spacingLeft=8;" parent="1" vertex="1">
+          <mxGeometry x="40" y="80" width="340" height="520" as="geometry" />
+        </mxCell>
+
+        <!-- Kubernetes Cluster Zone -->
+        <mxCell id="zone-k8s" value="Kubernetes Cluster (Customer-Owned)" style="rounded=1;arcSize=10;dashed=1;strokeColor=#0984e3;fillColor=#f0f8ff;strokeWidth=2;fontSize=14;fontStyle=1;fontColor=#0984e3;verticalAlign=top;spacingTop=8;spacingLeft=8;" parent="1" vertex="1">
+          <mxGeometry x="420" y="80" width="740" height="700" as="geometry" />
+        </mxCell>
+
+        <!-- Data Stores Zone -->
+        <mxCell id="zone-data" value="Data Stores" style="rounded=1;arcSize=10;dashed=1;strokeColor=#00b894;fillColor=#f0fff4;strokeWidth=2;fontSize=14;fontStyle=1;fontColor=#00b894;verticalAlign=top;spacingTop=8;spacingLeft=8;" parent="1" vertex="1">
+          <mxGeometry x="1200" y="80" width="360" height="400" as="geometry" />
+        </mxCell>
+
+        <!-- Observability Zone -->
+        <mxCell id="zone-obs" value="Observability" style="rounded=1;arcSize=10;dashed=1;strokeColor=#e17055;fillColor=#fff5f0;strokeWidth=2;fontSize=14;fontStyle=1;fontColor=#e17055;verticalAlign=top;spacingTop=8;spacingLeft=8;" parent="1" vertex="1">
+          <mxGeometry x="1200" y="520" width="360" height="260" as="geometry" />
+        </mxCell>
+
+        <!-- ==================== EXTERNAL SERVICES ==================== -->
+
+        <!-- Jira -->
+        <mxCell id="jira" value="Jira&#xa;(Tickets)" style="shape=mxgraph.azure.web_app;fillColor=#0052CC;strokeColor=none;fontColor=#ffffff;fontSize=12;spacingTop=4;spacing=6;rounded=1;arcSize=15;" parent="1" vertex="1">
+          <mxGeometry x="80" y="120" width="100" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- GitHub -->
+        <mxCell id="github" value="GitHub&#xa;(PRs / Repos)" style="shape=mxgraph.azure.web_app;fillColor=#24292E;strokeColor=none;fontColor=#ffffff;fontSize=12;spacingTop=4;spacing=6;rounded=1;arcSize=15;" parent="1" vertex="1">
+          <mxGeometry x="80" y="220" width="100" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- Vault -->
+        <mxCell id="vault" value="HashiCorp&#xa;Vault" style="shape=mxgraph.azure.web_app;fillColor=#FFEC6E;strokeColor=#000000;fontColor=#000000;fontSize=12;spacingTop=4;spacing=6;rounded=1;arcSize=15;" parent="1" vertex="1">
+          <mxGeometry x="80" y="320" width="100" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- OIDC Provider -->
+        <mxCell id="oidc" value="OIDC&#xa;Provider" style="shape=mxgraph.azure.web_app;fillColor=#6366F1;strokeColor=none;fontColor=#ffffff;fontSize=12;spacingTop=4;spacing=6;rounded=1;arcSize=15;" parent="1" vertex="1">
+          <mxGeometry x="80" y="420" width="100" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- LLM Providers -->
+        <mxCell id="llm" value="LLM Providers&#xa;(OpenCode Go /&#xa;Anthropic / OpenAI)" style="shape=mxgraph.azure.web_app;fillColor=#A855F7;strokeColor=none;fontColor=#ffffff;fontSize=11;spacingTop=4;spacing=6;rounded=1;arcSize=15;" parent="1" vertex="1">
+          <mxGeometry x="220" y="120" width="120" height="90" as="geometry" />
+        </mxCell>
+
+        <!-- Feature Flags -->
+        <mxCell id="featureflags" value="Feature Flags&#xa;(Unleash /&#xa;LaunchDarkly)" style="shape=mxgraph.azure.web_app;fillColor=#F59E0B;strokeColor=none;fontColor=#ffffff;fontSize=11;spacingTop=4;spacing=6;rounded=1;arcSize=15;" parent="1" vertex="1">
+          <mxGeometry x="220" y="240" width="120" height="90" as="geometry" />
+        </mxCell>
+
+        <!-- Statuspage / PagerDuty -->
+        <mxCell id="statuspage" value="Statuspage.io&#xa;PagerDuty" style="shape=mxgraph.azure.web_app;fillColor=#10B981;strokeColor=none;fontColor=#ffffff;fontSize=11;spacingTop=4;spacing=6;rounded=1;arcSize=15;" parent="1" vertex="1">
+          <mxGeometry x="220" y="360" width="120" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- LangSmith -->
+        <mxCell id="langsmith" value="LangSmith&#xa;(optional)" style="shape=mxgraph.azure.web_app;fillColor=#FF6B6B;strokeColor=none;fontColor=#ffffff;fontSize=11;spacingTop=4;spacing=6;rounded=1;arcSize=15;" parent="1" vertex="1">
+          <mxGeometry x="220" y="460" width="120" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- ==================== KUBERNETES - INGRESS ==================== -->
+
+        <!-- Ingress / NGINX -->
+        <mxCell id="ingress" value="Ingress / NGINX&#xa;TLS + Rate Limit + WAF" style="shape=mxgraph.azure.application_gateway;fillColor=#0078D4;strokeColor=none;fontColor=#ffffff;fontSize=11;spacingTop=4;spacing=6;rounded=1;arcSize=15;" parent="1" vertex="1">
+          <mxGeometry x="500" y="120" width="140" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- ==================== KUBERNETES - WORKLOADS ==================== -->
+
+        <!-- Backend API -->
+        <mxCell id="backend" value="Backend API&#xa;(FastAPI)&#xa;2-6 replicas" style="shape=mxgraph.azure.container_service_fabric;fillColor=#0984e3;strokeColor=none;fontColor=#ffffff;fontSize=11;spacingTop=4;spacing=6;rounded=1;arcSize=15;" parent="1" vertex="1">
+          <mxGeometry x="460" y="240" width="140" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- Frontend UI -->
+        <mxCell id="frontend" value="Frontend UI&#xa;(Vite + React)&#xa;2-4 replicas" style="shape=mxgraph.azure.container_service_fabric;fillColor=#00b894;strokeColor=none;fontColor=#ffffff;fontSize=11;spacingTop=4;spacing=6;rounded=1;arcSize=15;" parent="1" vertex="1">
+          <mxGeometry x="460" y="360" width="140" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- Worker Pool -->
+        <mxCell id="workers" value="Worker Pool&#xa;(ARQ + LangGraph)&#xa;2-10 replicas" style="shape=mxgraph.azure.container_service_fabric;fillColor=#6c5ce7;strokeColor=none;fontColor=#ffffff;fontSize=11;spacingTop=4;spacing=6;rounded=1;arcSize=15;" parent="1" vertex="1">
+          <mxGeometry x="460" y="480" width="140" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- LangGraph Graph (inside workers) -->
+        <mxCell id="langgraph" value="LangGraph StateGraph&#xa;planner → coder → tester&#xa;→ reviewer → pr_creator" style="rounded=1;arcSize=10;fillColor=#a29bfe;strokeColor=#6c5ce7;strokeWidth=2;fontSize=10;fontColor=#2d1b69;spacing=6;" parent="1" vertex="1">
+          <mxGeometry x="640" y="480" width="200" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- Sandbox Jobs -->
+        <mxCell id="sandbox" value="Sandbox Jobs&#xa;(gVisor / runsc)&#xa;per-tenant namespace" style="shape=mxgraph.azure.container_instances;fillColor=#fdcb6e;strokeColor=#e17055;strokeWidth=2;fontSize=10;fontColor=#2d3436;spacingTop=4;spacing=6;rounded=1;arcSize=15;" parent="1" vertex="1">
+          <mxGeometry x="640" y="600" width="200" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- Shadow Workers -->
+        <mxCell id="shadow" value="Shadow Workers&#xa;(read-only validation)" style="shape=mxgraph.azure.container_service_fabric;fillColor=#b2bec3;strokeColor=#636e72;strokeWidth=1;fontSize=10;fontColor=#2d3436;spacingTop=4;spacing=6;rounded=1;arcSize=15;" parent="1" vertex="1">
+          <mxGeometry x="460" y="600" width="140" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- ==================== DATA STORES ==================== -->
+
+        <!-- PostgreSQL -->
+        <mxCell id="postgres" value="PostgreSQL 16 HA&#xa;Primary + Sync + Async&#xa;Checkpoints, Config, Audit&#xa;Metering, pgvector (opt)" style="shape=mxgraph.azure.sql_databases;fillColor=#00b894;strokeColor=none;fontColor=#ffffff;fontSize=10;spacingTop=4;spacing=6;rounded=1;arcSize=15;" parent="1" vertex="1">
+          <mxGeometry x="1240" y="120" width="140" height="100" as="geometry" />
+        </mxCell>
+
+        <!-- Redis -->
+        <mxCell id="redis" value="Redis 7 Cluster&#xa;3 prim + 3 repl&#xa;Queue, Pub/Sub, Circuit&#xa;Breaker, Budget, DLQ" style="shape=mxgraph.azure.redis_cache;fillColor=#e17055;strokeColor=none;fontColor=#ffffff;fontSize=10;spacingTop=4;spacing=6;rounded=1;arcSize=15;" parent="1" vertex="1">
+          <mxGeometry x="1240" y="260" width="140" height="100" as="geometry" />
+        </mxCell>
+
+        <!-- PgBouncer -->
+        <mxCell id="pgbouncer" value="PgBouncer&#xa;(connection pool)" style="shape=mxgraph.azure.web_app;fillColor=#55a3a4;strokeColor=none;fontColor=#ffffff;fontSize=11;spacingTop=4;spacing=6;rounded=1;arcSize=15;" parent="1" vertex="1">
+          <mxGeometry x="1410" y="140" width="110" height="55" as="geometry" />
+        </mxCell>
+
+        <!-- ==================== OBSERVABILITY ==================== -->
+
+        <!-- Prometheus -->
+        <mxCell id="prometheus" value="Prometheus&#xa;(metrics)" style="shape=mxgraph.azure.web_app;fillColor=#E6522C;strokeColor=none;fontColor=#ffffff;fontSize=11;spacingTop=4;spacing=6;rounded=1;arcSize=15;" parent="1" vertex="1">
+          <mxGeometry x="1240" y="560" width="110" height="55" as="geometry" />
+        </mxCell>
+
+        <!-- Grafana -->
+        <mxCell id="grafana" value="Grafana&#xa;(dashboards)" style="shape=mxgraph.azure.web_app;fillColor=#F46800;strokeColor=none;fontColor=#ffffff;fontSize=11;spacingTop=4;spacing=6;rounded=1;arcSize=15;" parent="1" vertex="1">
+          <mxGeometry x="1240" y="640" width="110" height="55" as="geometry" />
+        </mxCell>
+
+        <!-- Loki -->
+        <mxCell id="loki" value="Loki&#xa;(logs)" style="shape=mxgraph.azure.web_app;fillColor=#8F56E4;strokeColor=none;fontColor=#ffffff;fontSize=11;spacingTop=4;spacing=6;rounded=1;arcSize=15;" parent="1" vertex="1">
+          <mxGeometry x="1380" y="560" width="110" height="55" as="geometry" />
+        </mxCell>
+
+        <!-- Tempo -->
+        <mxCell id="tempo" value="Tempo&#xa;(traces)" style="shape=mxgraph.azure.web_app;fillColor=#FFB441;strokeColor=none;fontColor=#ffffff;fontSize=11;spacingTop=4;spacing=6;rounded=1;arcSize=15;" parent="1" vertex="1">
+          <mxGeometry x="1380" y="640" width="110" height="55" as="geometry" />
+        </mxCell>
+
+        <!-- ==================== ARROWS / CONNECTIONS ==================== -->
+
+        <!-- Jira -> Ingress (webhook) -->
+        <mxCell id="edge-jira-ingress" value="webhook" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#0052CC;strokeWidth=2;fontSize=9;fontColor=#0052CC;" parent="1" source="jira" target="ingress" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Ingress -> Backend API -->
+        <mxCell id="edge-ingress-backend" value="HTTPS" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#0078D4;strokeWidth=2;fontSize=9;fontColor=#0078D4;" parent="1" source="ingress" target="backend" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Backend <-> Frontend -->
+        <mxCell id="edge-backend-frontend" value="SSE / REST" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#0984e3;strokeWidth=2;fontSize=9;fontColor=#0984e3;" parent="1" source="backend" target="frontend" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Backend -> Redis (enqueue) -->
+        <mxCell id="edge-backend-redis" value="enqueue" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#e17055;strokeWidth=2;fontSize=9;fontColor=#e17055;" parent="1" source="backend" target="redis" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Backend -> PostgreSQL -->
+        <mxCell id="edge-backend-postgres" value="read/write" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#00b894;strokeWidth=2;fontSize=9;fontColor=#00b894;" parent="1" source="backend" target="postgres" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Backend -> Vault -->
+        <mxCell id="edge-backend-vault" value="secrets" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#FFEC6E;strokeWidth=2;fontSize=9;fontColor=#636e72;dashed=1;" parent="1" source="backend" target="vault" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Backend -> OIDC -->
+        <mxCell id="edge-backend-oidc" value="auth" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#6366F1;strokeWidth=2;fontSize=9;fontColor=#6366F1;dashed=1;" parent="1" source="backend" target="oidc" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Backend -> Feature Flags -->
+        <mxCell id="edge-backend-ff" value="flags" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#F59E0B;strokeWidth=2;fontSize=9;fontColor=#F59E0B;dashed=1;" parent="1" source="backend" target="featureflags" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Workers -> Redis (dequeue) -->
+        <mxCell id="edge-workers-redis" value="dequeue" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#e17055;strokeWidth=2;fontSize=9;fontColor=#e17055;" parent="1" source="workers" target="redis" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Workers -> PostgreSQL (checkpoints) -->
+        <mxCell id="edge-workers-postgres" value="checkpoints" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#00b894;strokeWidth=2;fontSize=9;fontColor=#00b894;" parent="1" source="workers" target="postgres" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Workers -> LangGraph -->
+        <mxCell id="edge-workers-langgraph" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#6c5ce7;strokeWidth=2;" parent="1" source="workers" target="langgraph" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- LangGraph -> LLM Providers -->
+        <mxCell id="edge-langgraph-llm" value="LLM calls" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#A855F7;strokeWidth=2;fontSize=9;fontColor=#A855F7;" parent="1" source="langgraph" target="llm" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- LangGraph -> Sandbox -->
+        <mxCell id="edge-langgraph-sandbox" value="code exec" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#fdcb6e;strokeWidth=2;fontSize=9;fontColor=#e17055;" parent="1" source="langgraph" target="sandbox" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- LangGraph -> GitHub -->
+        <mxCell id="edge-langgraph-github" value="PR / git ops" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#24292E;strokeWidth=2;fontSize=9;fontColor=#24292E;" parent="1" source="langgraph" target="github" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- LangGraph -> Jira (status update) -->
+        <mxCell id="edge-langgraph-jira" value="status update" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#0052CC;strokeWidth=2;fontSize=9;fontColor=#0052CC;dashed=1;" parent="1" source="langgraph" target="jira" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Backend -> Statuspage -->
+        <mxCell id="edge-backend-statuspage" value="sync" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#10B981;strokeWidth=2;fontSize=9;fontColor=#10B981;dashed=1;" parent="1" source="backend" target="statuspage" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Backend -> LangSmith -->
+        <mxCell id="edge-backend-langsmith" value="tracing" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#FF6B6B;strokeWidth=2;fontSize=9;fontColor=#FF6B6B;dashed=1;" parent="1" source="backend" target="langsmith" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- All pods -> Observability -->
+        <mxCell id="edge-obs-prom" value="scrape" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#E6522C;strokeWidth=2;fontSize=9;fontColor=#E6522C;dashed=1;" parent="1" source="backend" target="prometheus" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="edge-obs-loki" value="logs" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#8F56E4;strokeWidth=2;fontSize=9;fontColor=#8F56E4;dashed=1;" parent="1" source="workers" target="loki" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="edge-obs-tempo" value="traces" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#FFB441;strokeWidth=2;fontSize=9;fontColor=#FFB441;dashed=1;" parent="1" source="langgraph" target="tempo" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Prometheus -> Grafana -->
+        <mxCell id="edge-prom-grafana" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#F46800;strokeWidth=2;" parent="1" source="prometheus" target="grafana" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- PgBouncer -> PostgreSQL -->
+        <mxCell id="edge-pgbouncer-postgres" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#55a3a4;strokeWidth=1;" parent="1" source="pgbouncer" target="postgres" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Shadow -> PostgreSQL -->
+        <mxCell id="edge-shadow-postgres" value="read-only" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#b2bec3;strokeWidth=1;fontSize=9;fontColor=#636e72;dashed=1;" parent="1" source="shadow" target="postgres" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- ==================== LEGEND ==================== -->
+        <mxCell id="legend-box" value="" style="rounded=1;arcSize=10;fillColor=#f8f9fa;strokeColor=#dee2e6;strokeWidth=1;" parent="1" vertex="1">
+          <mxGeometry x="40" y="640" width="340" height="140" as="geometry" />
+        </mxCell>
+
+        <mxCell id="legend-title" value="Legend" style="text;html=1;align=left;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=12;fontStyle=1;fontColor=#2d3436;" parent="1" vertex="1">
+          <mxGeometry x="55" y="650" width="60" height="20" as="geometry" />
+        </mxCell>
+
+        <mxCell id="legend-1" value="" style="line;strokeWidth=2;strokeColor=#0984e3;direction=south;" parent="1" vertex="1">
+          <mxGeometry x="60" y="680" width="10" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="legend-1-text" value="Primary data flow" style="text;html=1;align=left;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=10;fontColor=#2d3436;" parent="1" vertex="1">
+          <mxGeometry x="80" y="678" width="120" height="20" as="geometry" />
+        </mxCell>
+
+        <mxCell id="legend-2" value="" style="line;strokeWidth=2;strokeColor=#636e72;direction=south;dashed=1;" parent="1" vertex="1">
+          <mxGeometry x="60" y="710" width="10" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="legend-2-text" value="Optional / fallback" style="text;html=1;align=left;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=10;fontColor=#2d3436;" parent="1" vertex="1">
+          <mxGeometry x="80" y="708" width="120" height="20" as="geometry" />
+        </mxCell>
+
+        <mxCell id="legend-3" value="" style="rounded=1;arcSize=15;fillColor=#0984e3;strokeColor=none;" parent="1" vertex="1">
+          <mxGeometry x="60" y="740" width="10" height="10" as="geometry" />
+        </mxCell>
+        <mxCell id="legend-3-text" value="Kubernetes workload" style="text;html=1;align=left;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=10;fontColor=#2d3436;" parent="1" vertex="1">
+          <mxGeometry x="80" y="736" width="120" height="20" as="geometry" />
+        </mxCell>
+
+        <mxCell id="legend-4" value="" style="rounded=1;arcSize=15;fillColor=#00b894;strokeColor=none;" parent="1" vertex="1">
+          <mxGeometry x="220" y="740" width="10" height="10" as="geometry" />
+        </mxCell>
+        <mxCell id="legend-4-text" value="Data store" style="text;html=1;align=left;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=10;fontColor=#2d3436;" parent="1" vertex="1">
+          <mxGeometry x="240" y="736" width="80" height="20" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
