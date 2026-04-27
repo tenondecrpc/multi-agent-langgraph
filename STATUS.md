@@ -1,12 +1,12 @@
 # STATUS
 
-Last updated: 2026-04-26
+Last updated: 2026-04-27
 
 ## Overall status
 
 LangGraph Dev Squad is still pre-production, but the repository has moved beyond a scaffold. It now contains executable backend and frontend slices, a runnable runtime simulation path, durable PostgreSQL and Redis persistence adapters, baseline Helm packaging, and tested policy foundations.
 
-This is not yet a 100% production-operational enterprise deployment. The remaining gaps are mostly around production hardening, supply-chain enforcement, API compatibility gates, incident/status operations, and the full quality program.
+This is not yet a 100% production-operational enterprise deployment. The remaining gaps are mostly around production startup safety, frontend productization, operational drill evidence, supply-chain CI stability, the full quality program (chaos, fuzz, prompt regression), and progressive delivery with kill switches.
 
 This document compares three sources:
 
@@ -27,17 +27,28 @@ Archived and treated as completed foundation work:
 - `2026-04-18-phase-7-observability-reliability-and-release`
 - `2026-04-22-replace-in-memory-with-postgres-redis`
 - `2026-04-24-github-app-pat-onboarding-mechanics`
-- `2026-04-26-api-versioning-and-openapi-diff-gate`
-- `2026-04-26-optional-internal-rag-via-pgvector`
-- `2026-04-26-public-status-page-and-incident-runbooks`
 - `2026-04-26-air-gapped-deployment-profile`
-- `2026-04-26-supply-chain-and-admission-controller`
+- `2026-04-26-api-versioning-and-openapi-diff-gate`
 - `2026-04-26-billing-rate-card-reconciliation`
+- `2026-04-26-chaos-fuzz-and-prompt-regression-testing-program` - archived but `backend/tests/{chaos,fuzz,prompt_regression}` are still empty placeholders; the new `chaos-fuzz-prompt-regression-program` change closes the gap
+- `2026-04-26-credential-rotation-sla-and-break-glass`
+- `2026-04-26-data-retention-deletion-and-dpa-compliance`
+- `2026-04-26-jira-webhook-replay-and-rate-limit-hardening`
+- `2026-04-26-optional-internal-rag-via-pgvector`
+- `2026-04-26-progressive-delivery-and-feature-flag-kill-switches` - archived but the Argo Rollouts pipeline, OpenFeature wiring, and air-gapped flag-service degradation are still partial; the new `progressive-delivery-completion` change closes the gap
+- `2026-04-26-public-status-page-and-incident-runbooks`
+- `2026-04-26-supply-chain-and-admission-controller`
+- `2026-04-27-complete-critical-remaining-tasks`
+- `2026-04-27-fix-critical-security-and-infra-gaps`
 
-Active changes still open:
+Active OpenSpec changes (SDD only, no implementation yet):
 
-- `chaos-fuzz-and-prompt-regression-testing-program` - not implemented
-- `progressive-delivery-and-feature-flag-kill-switches` - not implemented as a full change
+- `progressive-delivery-completion` - completes Argo Rollouts canary, OpenFeature kill switches, propagation SLO, and air-gapped degradation contract
+- `chaos-fuzz-prompt-regression-program` - chaos scenario catalog, fuzz target catalog, prompt regression suites, offline-first execution, CI integration
+- `frontend-productization` - typed clients from `/api/v1/openapi.json`, live data wiring, graph editor stage 1 (shadow-mode preview), sprite metadata CRUD with deferred upload, locale extraction infrastructure
+- `production-startup-safety` - profile boot gate that refuses in-memory adapters in non-`local` profiles, webhook-path enforcement of credential rotation/break-glass/DPA, IP allowlist migration into versioned PostgreSQL config
+- `cluster-validation-and-drill-evidence` - drill catalog with cadence, evidence contract, validity windows, admission `Audit` to `Enforce` flip gate
+- `supply-chain-ci-stabilization` - pinned tool versions, dry-run PR check, fail-closed contract, permissions composite action, release evidence linkage
 
 ## Implemented foundations
 
@@ -152,7 +163,7 @@ What exists now:
 
 - PostgreSQL-backed run repository, control-plane store, metering ledger, budget ledger, model catalog, and webhook idempotency storage
 - Redis-backed worker coordination, budget counters, webhook short-window dedupe, provider circuit breaker, and control-plane snapshot invalidation
-- Alembic migrations through `20260422_0008`
+- Alembic migrations through `20260426_0016` (latest: `feature_flags`)
 - row-level security helpers and tenant-scoped persistence tests
 - persistence health, migration status, readiness, metrics, alerts, dashboards, and runbooks
 - factory tests that force production adapters when PostgreSQL and Redis are configured
@@ -470,35 +481,43 @@ Completed so far:
 
 ## Remaining work required for full production readiness
 
-The following items block a true production-ready deployment and map to active OpenSpec changes or unresolved plan commitments.
+The following items block a true production-ready deployment. SDD coverage now exists for the items below as OpenSpec changes under `openspec/changes/`; implementation is still pending.
 
 ### Tier 1 production blockers
 
-- Complete `progressive-delivery-and-feature-flag-kill-switches`
-  - wire Argo Rollouts analysis, automated rollback, OpenFeature integration, and kill-switch drills
+- `progressive-delivery-completion` (SDD drafted)
+  - wire Argo Rollouts analysis, automated rollback, OpenFeature kill switches, propagation SLO, air-gapped flag-service degradation
 
-- Complete `data-retention-deletion-and-dpa-compliance`
-  - implement tenant deletion cascade, retention automation, compliance documentation, and DPA acknowledgement
+- `chaos-fuzz-prompt-regression-program` (SDD drafted)
+  - chaos scenario catalog, fuzz targets, prompt regression suites with offline-first execution; replaces empty placeholder directories under `backend/tests/{chaos,fuzz,prompt_regression}`
 
-- Complete `chaos-fuzz-and-prompt-regression-testing-program`
-  - add chaos, fuzz, and prompt regression coverage required by the production test strategy
+- `production-startup-safety` (SDD drafted)
+  - boot gate that prevents non-`local` profiles from booting on `InMemory*` adapters
+  - webhook-path enforcement of credential rotation, break-glass grants, and DPA acknowledgement
+  - IP allowlist migration from environment configuration to versioned PostgreSQL config
+
+- `cluster-validation-and-drill-evidence` (SDD drafted)
+  - structured evidence bundles with validity windows
+  - admission `Audit` to `Enforce` flip gate consuming fresh evidence
+  - quarterly KEK rotation, DR backup-and-restore, and GDPR erasure drills with dual-control approval
+
+- `supply-chain-ci-stabilization` (SDD drafted)
+  - addresses the recurring CI churn around the supply-chain workflow visible in recent commit history
+  - pinned tool versions, dry-run PR check, fail-closed contract, release evidence linkage
 
 ### Tier 2 parity work still missing for full plan completion
 
 These items may have documented degraded paths for GA, but they are still missing if the target is 100% implementation of the plan.
 
-- Finish the full visual graph editor experience
-  - node, edge, route, and interrupt CRUD
-  - activation and shadow-mode UX beyond the current read-only validation shell
-
-- Finish sprite asset management
-  - upload flow, role/state mapping, and persistence beyond bundled assets only
+- `frontend-productization` (SDD drafted)
+  - typed clients from `/api/v1/openapi.json`
+  - live data wiring across operator surfaces
+  - graph editor stage 1 with shadow-mode preview (full CRUD remains a follow-up parity task)
+  - sprite metadata CRUD with deferred upload
+  - locale extraction infrastructure with Spanish staying disabled by default
 
 - Finish full pixel-art control-room parity
-  - real-time integration, richer state mapping, and production-grade polish
-
-- Finish localization parity
-  - deliver the Spanish locale and broader localization completeness
+  - real-time integration, richer state mapping, and production-grade polish (not yet covered by an OpenSpec change)
 
 ## Practical production-readiness summary
 
@@ -514,21 +533,15 @@ At a macro level:
 
 ## Current validation snapshot
 
-Validation run during this status update (2026-04-26):
+Validation run during this status update (2026-04-27):
 
-- `uv run --project backend ruff check backend/src backend/tests scripts/lint_alert_runbooks.py` - passed
-- `uv run --project backend pytest` - passed, 202 passed, 1 skipped, 0 failed
+- `uv run --project backend ruff check backend/src backend/tests` - passed
+- `uv run --project backend pytest` - passed, **284 passed, 1 skipped, 0 failed**
 - `npm run --prefix frontend test -- --run` - passed, 7 passed
-- `npm run --prefix frontend build` - passed
-- `helm template dev-squad ./helm -f ./helm/values.yaml` - passed
-- `helm template dev-squad ./helm -f ./helm/values.yaml -f ./helm/values-air-gapped.yaml` - passed
-- `helm template dev-squad ./helm -f ./helm/values.yaml -f ./helm/values-air-gapped.yaml --set llm.vendorApiKeys.anthropic=sk-test` - failed as expected with `air_gapped profile rejects vendor LLM API keys`
-- `helm template dev-squad ./helm -f ./helm/values.yaml -f ./helm/values-staging.yaml` - passed
-- `helm template dev-squad ./helm/policies -f ./helm/policies/values.yaml` - passed
-- `helm template dev-squad ./helm/policies -f ./helm/policies/values-air-gapped.yaml` - passed
-- `uv run --project backend python scripts/lint_alert_runbooks.py` - passed with orphan-runbook warnings only
-- `uv run --project backend python scripts/check_license_allowlist.py` - script validates correctly
-- focused status-page contract check - included in the backend and frontend runs above
+
+The previous status snapshot (2026-04-26) reported 202 backend tests; the increase reflects new contract test files for billing rate-card reconciliation, webhook hardening, credential rotation and break-glass, data retention and DPA compliance, feature flags, and the feature flag service that landed since then.
+
+Recent commit history on `main` (since 2026-04-26) shows repeated supply-chain workflow fixes (`cosign attach sbom` flag drift, GHCR login, SLSA generator permissions, OSV-Scanner reference, `cryptography` pin). The new `supply-chain-ci-stabilization` SDD change targets this brittleness directly.
 
 The seven PostgreSQL and Redis persistence test failures that appeared in the previous snapshot are resolved. Those tests were updated as part of the persistence backbone work to run against in-memory adapters when no database URL is present, so they now pass in the standard local test run without requiring a live PostgreSQL or Redis instance.
 
