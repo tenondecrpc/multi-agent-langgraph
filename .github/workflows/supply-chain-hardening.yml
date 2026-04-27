@@ -271,12 +271,19 @@ jobs:
           echo "digest=${{ steps.build.outputs.digest }}" >> "$GITHUB_OUTPUT"
           echo "image=ghcr.io/${{ github.repository }}/backend" >> "$GITHUB_OUTPUT"
 
-      - name: Generate SLSA provenance
-        uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0
-        with:
-          image: ${{ steps.digest.outputs.image }}
-          digest: ${{ steps.digest.outputs.digest }}
-          registry-username: ${{ github.actor }}
+  backend-slsa-generator:
+    needs: [backend-slsa-provenance]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      actions: read
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0
+    with:
+      image: ${{ needs.backend-slsa-provenance.outputs.image }}
+      digest: ${{ needs.backend-slsa-provenance.outputs.digest }}
+      registry-username: ${{ github.actor }}
 
   frontend-slsa-provenance:
     needs: [secret-scan, dockerfile-lint, frontend-scan]
@@ -320,12 +327,19 @@ jobs:
           echo "digest=${{ steps.build.outputs.digest }}" >> "$GITHUB_OUTPUT"
           echo "image=ghcr.io/${{ github.repository }}/frontend" >> "$GITHUB_OUTPUT"
 
-      - name: Generate SLSA provenance
-        uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0
-        with:
-          image: ${{ steps.digest.outputs.image }}
-          digest: ${{ steps.digest.outputs.digest }}
-          registry-username: ${{ github.actor }}
+  frontend-slsa-generator:
+    needs: [frontend-slsa-provenance]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      actions: read
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0
+    with:
+      image: ${{ needs.frontend-slsa-provenance.outputs.image }}
+      digest: ${{ needs.frontend-slsa-provenance.outputs.digest }}
+      registry-username: ${{ github.actor }}
 
   image-signing:
     needs: [backend-slsa-provenance, frontend-slsa-provenance, license-check]
