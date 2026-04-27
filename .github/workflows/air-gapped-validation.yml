@@ -145,6 +145,13 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y postgresql
 
+      - name: Add PostgreSQL binaries to PATH
+        run: |
+          PG_BIN=$(find /usr/lib/postgresql -name initdb -type f -exec dirname {} \; | head -1)
+          if [ -n "$PG_BIN" ]; then
+            echo "$PG_BIN" >> "$GITHUB_PATH"
+          fi
+
       - name: Run air-gapped backend tests
         run: >
           uv run --project backend pytest backend/tests/ -v

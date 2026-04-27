@@ -83,7 +83,7 @@ def build_billing_router(
         period_end: datetime,
         provider: str,
         provider_reported_total_usd: Decimal,
-        mode: str = Query("dry_run", regex="^(dry_run|enforce)$"),
+        mode: str = Query("dry_run", pattern="^(dry_run|enforce)$"),
     ) -> dict:
         if not isinstance(metering_ledger, PostgresMeteringLedger):
             raise HTTPException(status_code=501, detail="reconciliation_not_available")

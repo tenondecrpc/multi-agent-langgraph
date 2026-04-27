@@ -1156,4 +1156,7 @@ def _connect(database_url: str) -> psycopg.Connection:
 
 
 def _run(command_args: list[str]) -> None:
-    subprocess.run(command_args, check=True, capture_output=True, text=True)
+    try:
+        subprocess.run(command_args, check=True, capture_output=True, text=True)
+    except FileNotFoundError as exc:
+        pytest.skip(f"ephemeral postgres bootstrap unavailable in this environment: {exc}")

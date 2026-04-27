@@ -212,4 +212,7 @@ def _connect(database_url: str):
 
 
 def _run(command: list[str]) -> None:
-    subprocess.run(command, check=True, capture_output=True, text=True)
+    try:
+        subprocess.run(command, check=True, capture_output=True, text=True)
+    except FileNotFoundError as exc:
+        pytest.skip(f"ephemeral postgres bootstrap unavailable in this environment: {exc}")
