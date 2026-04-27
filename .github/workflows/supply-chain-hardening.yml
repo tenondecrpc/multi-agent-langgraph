@@ -231,7 +231,6 @@ jobs:
 
   backend-slsa-provenance:
     needs: [secret-scan, dockerfile-lint, sbom-and-scan]
-    runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
       id-token: write
@@ -248,7 +247,6 @@ jobs:
 
   frontend-slsa-provenance:
     needs: [secret-scan, dockerfile-lint, frontend-scan]
-    runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
       id-token: write
