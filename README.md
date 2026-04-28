@@ -147,22 +147,39 @@ minikube service frontend  # opens UI in browser
 | Frontend UI | http://127.0.0.1:18080 |
 
 > The port-forward must be running in a separate terminal for these localhost URLs to work.
+> If your curl returns an empty response or "Connection refused", the port-forward is not active.
 
-### Smoke test
+### Testing the system
 
-Requires port-forward to be running in another terminal.
+There are two ways to exercise the backend: the **simulate endpoint** (synchronous, runs the full graph in one request) and the **Jira webhook** (asynchronous, requires an ARQ worker). For local validation, use the simulate endpoint.
+
+#### Step 1 - Verify the backend is healthy
+
+With port-forward running in another terminal:
 
 ```bash
-make smoke-test
+curl -s http://127.0.0.1:18000/healthz | python3 -m json.tool
 ```
 
-Or manually:
+Expected response:
+
+```json
+{
+    "status": "ok",
+    "reasons": [],
+    "persistence": {
+        "database": {"name": "database", "configured": false, "healthy": false},
+        "redis": {"name": "redis", "configured": false, "healthy": false},
+        "encryption": {"name": "encryption", "configured": true, "healthy": true}
+    }
+}
+```
+
+`"status": "ok"` and `"encryption": {"configured": true}` are the two things that matter. Database and Redis show `"configured": false` in local Minikube - this is expected.
+
+#### Step 2 - Run the full agent pipeline
 
 ```bash
-# Health check
-curl http://127.0.0.1:18000/healthz
-
-# Simulate a full workflow run
 curl -s -X POST http://127.0.0.1:18000/api/v1/runtime/simulate \
   -H "Content-Type: application/json" \
   -d '{
@@ -174,6 +191,63 @@ curl -s -X POST http://127.0.0.1:18000/api/v1/runtime/simulate \
     }
   }' | python3 -m json.tool
 ```
+
+This endpoint runs the entire LangGraph graph synchronously. It takes a few seconds. Look for these fields in the response:
+
+| Field | Expected value | What it means |
+|---|---|---|
+| `status` | `"completed"` | The full pipeline finished successfully |
+| `current_node` | `"pr_creator"` | Execution reached the final node |
+| `tests_passed` | `true` | The tester node passed |
+| `review_approved` | `true` | The reviewer node approved |
+| `pr_created` | `true` | The PR creator node executed |
+| `node_history` | 12 entries | Full path from intake to pr_creator |
+
+The `node_history` array shows every node that ran in order:
+
+```
+intake -> load_constitution -> create_feature_spec -> clarify ->
+create_plan -> create_task_list -> readiness_gate -> coder ->
+tester -> reviewer -> pre_pr_sync -> pr_creator
+```
+
+If any guard fails, the response will show `escalation_reason` set and `status` will not be `"completed"`.
+
+#### Step 3 - Test the Jira webhook (optional)
+
+The webhook endpoint validates HMAC-SHA256 signatures. It accepts the event but does **not** run the graph synchronously - that requires an ARQ worker (not deployed in local Minikube).
+
+```bash
+# Generate a signed request (Python required)
+python3 -c "
+import hmac, hashlib, json, time, secrets
+
+secret = '$(kubectl get secret dev-squad-backend-secret -o jsonpath={.data.BACKEND_WEBHOOK_SHARED_SECRET} | base64 -d)'
+event = {'event_id': secrets.token_hex(8), 'ticket_key': 'PROJ-42', 'tenant_id': 'tenant-alpha', 'team_id': 'team-core', 'summary': 'Fix something'}
+body = json.dumps(event)
+timestamp = int(time.time())
+payload = f'{timestamp}.{body}'
+sig = hmac.new(secret.encode(), payload.encode(), hashlib.sha256).hexdigest()
+print(f'curl -s -X POST http://127.0.0.1:18000/api/v1/webhooks/jira \\')
+print(f'  -H \"Content-Type: application/json\" \\')
+print(f'  -H \"X-Hub-Signature-256: sha256={sig}\" \\')
+print(f'  -H \"X-Atlassian-Webhook-Timestamp: {timestamp}\" \\')
+print(f'  -d \"{body}\"')
+"
+```
+
+Expected response: `{"event_id": "...", "ticket_key": "PROJ-42", "accepted": true, "deduplicated": false}`
+
+If you get `{"detail": "invalid_signature"}`, the signature was computed incorrectly. The signing payload must be `"{timestamp}.{body}"` (dot-separated), not just the body.
+
+#### Quick test with Makefile
+
+```bash
+# Requires port-forward running in another terminal
+make smoke-test
+```
+
+This runs the health check and simulate workflow automatically.
 
 ### Useful Makefile targets
 
@@ -201,15 +275,21 @@ You can run the backend and frontend directly on your machine for faster iterati
 ```bash
 # Auto-generates dev env vars and starts with hot reload
 make dev-backend
-
-# Or set env vars manually and run:
-export BACKEND_ENCRYPTION_ACTIVE_KEY_ID="kek-dev-v1"
-export BACKEND_ENCRYPTION_ACTIVE_WRAPPING_KEY=$(python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())")
-export BACKEND_WEBHOOK_SHARED_SECRET=$(python3 -c "import secrets; print(secrets.token_urlsafe(32))")
-uv run --project backend uvicorn backend.app:app --host 127.0.0.1 --port 8000 --reload
 ```
 
 The backend starts on http://127.0.0.1:8000. Database and Redis are optional - the health endpoint will show them as "not configured" but the API remains functional.
+
+To test it, open another terminal:
+
+```bash
+# Health check
+curl http://127.0.0.1:8000/healthz
+
+# Full pipeline simulation
+curl -s -X POST http://127.0.0.1:8000/api/v1/runtime/simulate \
+  -H "Content-Type: application/json" \
+  -d '{"planning":{"tenant_id":"tenant-alpha","repo_id":"repo-main","ticket_key":"PROJ-1","summary":"Add login page"}}' | python3 -m json.tool
+```
 
 ### Frontend
 
@@ -218,9 +298,20 @@ make dev-frontend
 # or: npm run --prefix frontend dev
 ```
 
-The frontend dev server starts on http://127.0.0.1:5173 with hot reload.
+The frontend dev server starts on http://127.0.0.1:5173 with hot reload. Configure it to point to the local backend by setting `VITE_API_URL=http://127.0.0.1:8000` if needed.
 
 ## Troubleshooting
+
+### Curl returns empty response or "Connection refused"
+
+The port-forward is not running or has stopped. Start it in a separate terminal:
+
+```bash
+make port-forward
+# or: kubectl port-forward svc/backend 18000:8000
+```
+
+If you restarted the deployment, the port-forward dies. Kill it and start a new one.
 
 ### Backend pod CrashLoopBackOff
 
@@ -243,6 +334,10 @@ If you changed the secret after deploying, restart the pods:
 ```bash
 kubectl rollout restart deployment/backend
 ```
+
+### Webhook returns `invalid_signature`
+
+The HMAC signature must be computed over the string `"{timestamp}.{body}"` (dot-separated), not just the body. The `X-Hub-Signature-256` header value must be prefixed with `sha256=`. The timestamp in the header must match the one used in the signature payload.
 
 ### Pod stuck in ImagePullBackOff
 
@@ -340,4 +435,4 @@ npm run --prefix frontend build
 
 ## Current state
 
-The backend graph and API are functional, and Minikube is the only documented local runtime path. PostgreSQL, Redis, Vault, and real LLM provider connections are wired in later deployment phases via Helm chart values.
+The backend graph and API are functional. The `/api/v1/runtime/simulate` endpoint runs the full 12-node pipeline synchronously and is the recommended way to validate the system locally. The `/api/v1/webhooks/jira` endpoint accepts and validates HMAC-signed events but does not execute the graph asynchronously because the ARQ worker is not deployed in local Minikube. PostgreSQL, Redis, Vault, and real LLM provider connections are wired in later deployment phases via Helm chart values.
