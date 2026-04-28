@@ -20,6 +20,30 @@ spec:
           imagePullPolicy: Never
           ports:
             - containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: dev-squad-backend-config
+          env:
+            - name: BACKEND_ENCRYPTION_ACTIVE_WRAPPING_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: dev-squad-backend-secret
+                  key: BACKEND_ENCRYPTION_ACTIVE_WRAPPING_KEY
+            - name: BACKEND_WEBHOOK_SHARED_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: dev-squad-backend-secret
+                  key: BACKEND_WEBHOOK_SHARED_SECRET
+            - name: BACKEND_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: dev-squad-backend-secret
+                  key: BACKEND_DATABASE_URL
+            - name: BACKEND_REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: dev-squad-backend-secret
+                  key: BACKEND_REDIS_URL
           readinessProbe:
             httpGet:
               path: /readyz
