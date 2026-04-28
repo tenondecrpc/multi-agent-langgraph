@@ -75,9 +75,12 @@ def create_app(
             telemetry=adapters.telemetry,
         ),
     )
+    _checkpointer = None
+    if adapters.checkpoint_saver is not None:
+        _checkpointer = adapters.checkpoint_saver.build_saver()
     runtime_workflow = workflow or RuntimeWorkflow(
         repository=adapters.run_repository,
-        checkpointer=adapters.checkpoint_saver,
+        checkpointer=_checkpointer,
         store=adapters.graph_store,
     )
 

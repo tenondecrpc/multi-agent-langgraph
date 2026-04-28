@@ -46,9 +46,10 @@ openspec/       Spec-Driven Development artifacts (proposals, specs, tasks)
 | Python | 3.12+ | Backend runtime |
 | uv | latest | Python dependency management |
 | Node.js | 18+ | Frontend build and dev server |
-| Docker | 20+ | Minikube image builds |
-| minikube | 1.30+ | Local Kubernetes cluster |
-| kubectl | 1.28+ | Kubernetes CLI |
+| Docker | 20+ | Local dependencies and Minikube image builds |
+| Docker Compose | 2.20+ | Local PostgreSQL and Redis (Option A) |
+| minikube | 1.30+ | Local Kubernetes cluster (Option B) |
+| kubectl | 1.28+ | Kubernetes CLI (Option B) |
 
 Install [uv](https://docs.astral.sh/uv/) if you do not have it:
 
@@ -71,9 +72,89 @@ The backend requires these variables at startup. Without them the process exits 
 
 The `make minikube-secrets` target generates safe dev defaults for all required values. For local development without Kubernetes, `make dev-backend` auto-generates them if not already set in your environment.
 
-## Running on Minikube
+## Local development
 
-### Quick start
+You have two options for running the system locally. Choose the one that fits your workflow.
+
+| Option | Use case | PostgreSQL | Redis | Kubernetes |
+|---|---|---|---|---|
+| **A - Docker Compose + native processes** | Daily development, fast iteration | Yes (Docker) | Yes (Docker) | No |
+| **B - Minikube** | Validate Kubernetes manifests, Helm charts, networking | No (placeholder) | No (placeholder) | Yes |
+
+### Option A - Docker Compose + native processes (recommended)
+
+This is the fastest way to get a fully functional local environment. PostgreSQL and Redis run in Docker containers while the backend and frontend run natively on your machine with hot reload.
+
+#### Step 1 - Start dependencies
+
+```bash
+make local-up
+```
+
+This starts:
+- **PostgreSQL 16** with `pgvector` on port `5432`
+- **Redis 7** on port `6379`
+
+Both services persist data in named Docker volumes and expose health checks.
+
+#### Step 2 - Start the backend
+
+```bash
+make dev-backend
+```
+
+The Makefile automatically wires `BACKEND_DATABASE_URL` and `BACKEND_REDIS_URL` to the local Docker services unless you already have them set in your environment. The backend starts on http://127.0.0.1:8000 with hot reload.
+
+To verify everything is connected, open another terminal:
+
+```bash
+curl -s http://127.0.0.1:8000/healthz | python3 -m json.tool
+```
+
+You should now see `database` and `redis` as `configured: true`.
+
+#### Step 3 - Start the frontend
+
+```bash
+make dev-frontend
+```
+
+The dev server starts on http://127.0.0.1:5173. It proxies API requests to the local backend automatically.
+
+#### Full pipeline test
+
+With both backend and frontend running:
+
+```bash
+curl -s -X POST http://127.0.0.1:8000/api/v1/runtime/simulate \
+  -H "Content-Type: application/json" \
+  -d '{"planning":{"tenant_id":"tenant-alpha","repo_id":"repo-main","ticket_key":"PROJ-1","summary":"Add login page"}}' | python3 -m json.tool
+```
+
+#### Stop dependencies
+
+```bash
+make local-down
+```
+
+This stops and removes the containers and volumes. To only stop without removing volumes, run `docker compose down`.
+
+#### Useful targets
+
+```bash
+make local-up      # Start PostgreSQL + Redis
+make local-down    # Stop and remove containers/volumes
+make local-logs    # Tail Docker Compose logs
+make local-status  # Show running containers
+make dev-backend   # Run backend with uv (hot reload)
+make dev-frontend  # Run frontend with Vite (hot reload)
+```
+
+### Option B - Minikube
+
+Use this option when you need to validate Kubernetes manifests, Helm charts, Argo Rollouts, NetworkPolicies, or gVisor configurations. Note that the local Minikube setup does **not** deploy PostgreSQL or Redis - the backend starts in a degraded mode where persistence and queues show "not configured".
+
+#### Quick start
 
 ```bash
 # Start Minikube
@@ -91,27 +172,7 @@ make minikube-up
 4. **minikube-deploy** - applies all manifests from `k8s/`
 5. **minikube-wait** - waits for both pods to reach Ready status
 
-### Manual commands
-
-If you prefer to run steps individually:
-
-```bash
-# 1. Build images
-minikube image build -t langgraph-backend:latest ./backend
-minikube image build -t langgraph-frontend:latest ./frontend
-
-# 2. Generate and apply dev secrets
-make minikube-secrets
-
-# 3. Deploy
-kubectl apply -f k8s/
-
-# 4. Wait for pods
-kubectl wait --for=condition=ready pod -l app=backend --timeout=120s
-kubectl wait --for=condition=ready pod -l app=frontend --timeout=120s
-```
-
-### Access the services
+#### Access the services
 
 Minikube with the Docker driver does not expose NodePort services directly on the host IP. Use one of these methods:
 
@@ -149,11 +210,11 @@ minikube service frontend  # opens UI in browser
 > The port-forward must be running in a separate terminal for these localhost URLs to work.
 > If your curl returns an empty response or "Connection refused", the port-forward is not active.
 
-### Testing the system
+#### Testing the system on Minikube
 
 There are two ways to exercise the backend: the **simulate endpoint** (synchronous, runs the full graph in one request) and the **Jira webhook** (asynchronous, requires an ARQ worker). For local validation, use the simulate endpoint.
 
-#### Step 1 - Verify the backend is healthy
+**Step 1 - Verify the backend is healthy**
 
 With port-forward running in another terminal:
 
@@ -177,7 +238,7 @@ Expected response:
 
 `"status": "ok"` and `"encryption": {"configured": true}` are the two things that matter. Database and Redis show `"configured": false` in local Minikube - this is expected.
 
-#### Step 2 - Run the full agent pipeline
+**Step 2 - Run the full agent pipeline**
 
 ```bash
 curl -s -X POST http://127.0.0.1:18000/api/v1/runtime/simulate \
@@ -213,7 +274,7 @@ tester -> reviewer -> pre_pr_sync -> pr_creator
 
 If any guard fails, the response will show `escalation_reason` set and `status` will not be `"completed"`.
 
-#### Step 3 - Test the Jira webhook (optional)
+**Step 3 - Test the Jira webhook (optional)**
 
 The webhook endpoint validates HMAC-SHA256 signatures. It accepts the event but does **not** run the graph synchronously - that requires an ARQ worker (not deployed in local Minikube).
 
@@ -249,7 +310,7 @@ make smoke-test
 
 This runs the health check and simulate workflow automatically.
 
-### Useful Makefile targets
+#### Useful Makefile targets
 
 ```bash
 make help               # List all available targets
@@ -259,50 +320,147 @@ make minikube-logs      # Tail backend logs
 make generate-fernet-key # Print a new Fernet encryption key
 ```
 
-### Tear down
+#### Tear down
 
 ```bash
 make minikube-delete
 minikube stop
 ```
 
-## Local development (no Minikube)
+## Integraciones necesarias para un flujo completo
 
-You can run the backend and frontend directly on your machine for faster iteration.
+PostgreSQL + Redis son la infraestructura base para que la aplicacion arranque con persistencia real, pero para un flujo **end-to-end completo** se necesitan integraciones externas adicionales.
 
-### Backend
+### Que cubre Docker Compose (infraestructura base)
+
+| Servicio | Proposito |
+|---|---|
+| PostgreSQL 16 + pgvector | Checkpoints, memoria, config, auditoria, metering, DLQ |
+| Redis 7 | Colas ARQ, pub/sub, circuit breaker, idempotencia |
+
+### Que falta para un pipeline real (integraciones externas)
+
+Estas dependencias no se pueden containerizar facilmente porque son servicios SaaS o requieren configuracion externa:
+
+#### 1. LLM Provider (imprescindible)
+
+El grafo no puede planificar, codear, testear ni revisar sin llamadas a un LLM. El backend necesita algun provider configurado.
+
+**Opciones:**
+
+| Provider | Variable de entorno | Notas |
+|---|---|---|
+| OpenAI | `OPENAI_API_KEY` o `BACKEND_OPENAI_API_KEY` | Requiere cuenta con saldo |
+| Anthropic | `ANTHROPIC_API_KEY` o `BACKEND_ANTHROPIC_API_KEY` | Requiere cuenta con saldo |
+| OpenCode-Go | `BACKEND_PROVIDER_OPENCODE_GO_ENDPOINT` | Endpoint local o remoto (por defecto apunta a `http://dev-squad-opencode-go:8080/v1`) |
+| Ollama | Ollama corriendo localmente | Modelo `llama3.1` pre-configurado en el catalogo |
+
+**Ejemplo con OpenAI:**
 
 ```bash
-# Auto-generates dev env vars and starts with hot reload
+export OPENAI_API_KEY="sk-..."
 make dev-backend
 ```
 
-The backend starts on http://127.0.0.1:8000. Database and Redis are optional - the health endpoint will show them as "not configured" but the API remains functional.
-
-To test it, open another terminal:
+**Ejemplo con OpenCode-Go local:**
 
 ```bash
-# Health check
-curl http://127.0.0.1:8000/healthz
-
-# Full pipeline simulation
-curl -s -X POST http://127.0.0.1:8000/api/v1/runtime/simulate \
-  -H "Content-Type: application/json" \
-  -d '{"planning":{"tenant_id":"tenant-alpha","repo_id":"repo-main","ticket_key":"PROJ-1","summary":"Add login page"}}' | python3 -m json.tool
+export BACKEND_PROVIDER_OPENCODE_GO_ENDPOINT="http://localhost:8080/v1"
+make dev-backend
 ```
 
-### Frontend
+> Sin un LLM provider configurado, el `simulate` endpoint ejecutara el grafo pero fallara en los nodos que requieren LLM (planner, coder, tester, reviewer).
+
+#### 2. ARQ Worker (para async real)
+
+El endpoint `/api/v1/webhooks/jira` **acepta** el evento pero solo lo encola. Para procesarlo asincronicamente necesitas correr el worker ARQ.
 
 ```bash
-make dev-frontend
-# or: npm run --prefix frontend dev
+# Ejemplo conceptual (el entrypoint exacto depende de la implementacion)
+uv run --project backend arq backend.worker.WorkerSettings
 ```
 
-The frontend dev server starts on http://127.0.0.1:5173 with hot reload. Configure it to point to the local backend by setting `VITE_API_URL=http://127.0.0.1:8000` if needed.
+El `simulate` endpoint corre sincronicamente y no requiere worker. El pipeline real (Jira webhook -> grafo -> PR) es asincronico y requiere workers consumiendo de Redis.
+
+#### 3. GitHub Integration (para `pr_creator`)
+
+El nodo `pr_creator` necesita credenciales para crear pull requests.
+
+**Opciones:**
+
+| Metodo | Variables / Configuracion |
+|---|---|
+| GitHub App | `GITHUB_APP_ID` + `GITHUB_APP_PRIVATE_KEY_PEM` (recomendado) |
+| Personal Access Token | `GITHUB_TOKEN` (fallback, mas restrictivo) |
+
+Sin GitHub configurado, el grafo llegara al nodo `pr_creator` pero fallara al intentar crear el PR.
+
+#### 4. Opcionales segun el caso
+
+| Servicio | Requerido | Fallback |
+|---|---|---|
+| Feature Flags (Unleash/LaunchDarkly) | No | PostgreSQL mirror (funciona sin el servicio) |
+| LangSmith | No | Desactivado por defecto |
+| Vault | No | Encryption provider `local` en dev |
+| gVisor | No | Solo para testear sandboxing en K8s |
+
+### Verificacion rapida de integraciones
+
+Con el backend corriendo, el health check te dice que esta configurado:
+
+```bash
+curl -s http://127.0.0.1:8000/healthz | python3 -m json.tool
+```
+
+Busca estos campos:
+
+| Campo | `configured: true` significa |
+|---|---|
+| `persistence.database` | PostgreSQL conectado |
+| `persistence.redis` | Redis conectado |
+| `persistence.encryption` | Clave de encriptacion activa |
+
+Para verificar el LLM provider, intenta el `simulate` endpoint y revisa si los nodos del grafo completan exitosamente.
 
 ## Troubleshooting
 
-### Curl returns empty response or "Connection refused"
+### Docker Compose (Option A)
+
+#### PostgreSQL or Redis fails to start
+
+Check the container status:
+
+```bash
+make local-status
+make local-logs
+```
+
+Common causes:
+
+| Error | Fix |
+|---|---|
+| Port `5432` already in use | Stop the conflicting service or change the host port in `docker-compose.yml` |
+| Port `6379` already in use | Stop the conflicting service or change the host port in `docker-compose.yml` |
+| `pgvector` extension missing | Ensure the image is `pgvector/pgvector:pg16` |
+
+#### Backend cannot connect to database or Redis
+
+If you see `configured: false` for database or Redis in the health check, verify the containers are running and healthy:
+
+```bash
+docker compose ps
+```
+
+The `dev-backend` target auto-wires connection URLs only if the environment variables are **not** already set. If you previously exported custom values, unset them first:
+
+```bash
+unset BACKEND_DATABASE_URL BACKEND_REDIS_URL
+make dev-backend
+```
+
+### Minikube (Option B)
+
+#### Curl returns empty response or "Connection refused"
 
 The port-forward is not running or has stopped. Start it in a separate terminal:
 
@@ -313,7 +471,7 @@ make port-forward
 
 If you restarted the deployment, the port-forward dies. Kill it and start a new one.
 
-### Backend pod CrashLoopBackOff
+#### Backend pod CrashLoopBackOff
 
 Check the logs:
 
@@ -335,11 +493,7 @@ If you changed the secret after deploying, restart the pods:
 kubectl rollout restart deployment/backend
 ```
 
-### Webhook returns `invalid_signature`
-
-The HMAC signature must be computed over the string `"{timestamp}.{body}"` (dot-separated), not just the body. The `X-Hub-Signature-256` header value must be prefixed with `sha256=`. The timestamp in the header must match the one used in the signature payload.
-
-### Pod stuck in ImagePullBackOff
+#### Pod stuck in ImagePullBackOff
 
 The images must be built inside Minikube's Docker daemon:
 
@@ -349,7 +503,7 @@ minikube image build -t langgraph-frontend:latest ./frontend
 kubectl rollout restart deployment/backend deployment/frontend
 ```
 
-### Port-forward fails
+#### Port-forward fails
 
 Make sure the pods are running first:
 
@@ -365,17 +519,34 @@ lsof -ti:18000 | xargs kill 2>/dev/null
 lsof -ti:18080 | xargs kill 2>/dev/null
 ```
 
-### Cannot access services via NodePort URL
+#### Cannot access services via NodePort URL
 
 Minikube with the Docker driver does not expose NodePort services on the host. The URLs like `http://192.168.49.2:30800` will not work from your browser. Use `make port-forward` or `minikube service` instead (see "Access the services" above).
 
-### Health check shows "not configured" for database/Redis
+#### Health check shows "not configured" for database/Redis
 
 This is expected for local Minikube without PostgreSQL or Redis deployed. The backend starts successfully and serves API requests. Persistence-dependent features (checkpoints, queues, audit) will not function until you deploy those services.
 
+### Common to both options
+
+#### Webhook returns `invalid_signature`
+
+The HMAC signature must be computed over the string `"{timestamp}.{body}"` (dot-separated), not just the body. The `X-Hub-Signature-256` header value must be prefixed with `sha256=`. The timestamp in the header must match the one used in the signature payload.
+
 ## Agent observability with LangSmith
 
-LangSmith tracing is disabled by default. The setup differs between local Minikube and a real cluster deployment.
+LangSmith tracing is disabled by default. The setup differs by environment.
+
+### Local development (Docker Compose)
+
+Export the variables before starting the backend:
+
+```bash
+export LANGCHAIN_TRACING_V2=true
+export LANGSMITH_API_KEY=<your-LANGSMITH_API_KEY>
+export LANGSMITH_PROJECT=langgraph-dev-squad-local
+make dev-backend
+```
 
 ### Local Minikube
 
@@ -435,4 +606,10 @@ npm run --prefix frontend build
 
 ## Current state
 
-The backend graph and API are functional. The `/api/v1/runtime/simulate` endpoint runs the full 12-node pipeline synchronously and is the recommended way to validate the system locally. The `/api/v1/webhooks/jira` endpoint accepts and validates HMAC-signed events but does not execute the graph asynchronously because the ARQ worker is not deployed in local Minikube. PostgreSQL, Redis, Vault, and real LLM provider connections are wired in later deployment phases via Helm chart values.
+The backend graph and API are functional. The `/api/v1/runtime/simulate` endpoint runs the full 12-node pipeline synchronously and is the recommended way to validate the system locally.
+
+For **daily development**, use Option A (Docker Compose + native processes). It provides real PostgreSQL and Redis so persistence, checkpoints, queues, and audit features work out of the box.
+
+For **Kubernetes validation**, use Option B (Minikube). Note that the local Minikube setup does not deploy PostgreSQL or Redis - the backend starts in a degraded mode where persistence and queues show "not configured". Vault and real LLM provider connections are wired in later deployment phases via Helm chart values.
+
+The `/api/v1/webhooks/jira` endpoint accepts and validates HMAC-signed events. Asynchronous graph execution via ARQ requires a worker deployment (available in the Helm chart, not in local Minikube).

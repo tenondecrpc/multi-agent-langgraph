@@ -1,0 +1,59 @@
+# Local development dependencies
+# Use this file to run PostgreSQL and Redis locally while developing the
+# backend and frontend directly on your machine (no Kubernetes required).
+#
+# Quick start:
+#   make local-up      # docker compose up -d
+#   make local-down    # docker compose down -v
+#   make dev-backend   # run backend natively with hot reload
+#   make dev-frontend  # run frontend natively with Vite dev server
+#
+# What this covers (infrastructure base):
+#   - PostgreSQL 16 with pgvector (checkpoints, memory, config, audit, metering)
+#   - Redis 7 (ARQ queues, pub/sub, circuit breaker, idempotency)
+#
+# What is NOT included (external integrations required for a full pipeline):
+#   - LLM Provider (OpenAI, Anthropic, Ollama, or OpenCode-Go endpoint)
+#   - ARQ Worker (for async webhook processing)
+#   - GitHub Integration (App or PAT for PR creation)
+#
+# See README.md section "Integraciones necesarias para un flujo completo"
+# for details on configuring these integrations.
+#
+# The backend will auto-connect if BACKEND_DATABASE_URL and BACKEND_REDIS_URL
+# are not already set in your environment (see Makefile dev-backend target).
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: dev-squad-postgres
+    environment:
+      POSTGRES_USER: dev
+      POSTGRES_PASSWORD: dev
+      POSTGRES_DB: devsquad
+    ports:
+      - "5432:5432"
+    volumes:
+      - dev-squad-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dev -d devsquad"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: dev-squad-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - dev-squad-redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  dev-squad-postgres:
+  dev-squad-redis:

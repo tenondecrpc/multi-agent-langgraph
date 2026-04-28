@@ -1,6 +1,7 @@
 .PHONY: minikube-images minikube-secrets minikube-deploy minikube-up minikube-delete \
         minikube-status minikube-logs minikube-wait minikube-urls port-forward smoke-test \
-        check-prereqs generate-fernet-key dev-backend dev-frontend help
+        check-prereqs generate-fernet-key dev-backend dev-frontend help \
+        local-up local-down local-logs local-status
 
 # ---------------------------------------------------------------------------
 # Help
@@ -21,7 +22,11 @@ help:
 	@echo "    make smoke-test           Run health check and simulate workflow"
 	@echo ""
 	@echo "  Local dev (no Minikube):"
-	@echo "    make dev-backend          Run backend locally with uv (requires env vars)"
+	@echo "    make local-up             Start PostgreSQL + Redis via Docker Compose"
+	@echo "    make local-down           Stop and remove PostgreSQL + Redis volumes"
+	@echo "    make local-logs           Tail Docker Compose service logs"
+	@echo "    make local-status         Show running Docker Compose containers"
+	@echo "    make dev-backend          Run backend locally with uv (auto-wires local DB/Redis)"
 	@echo "    make dev-frontend         Run frontend locally with Vite dev server"
 	@echo ""
 	@echo "  Utilities:"
@@ -139,23 +144,66 @@ smoke-test:
 	@echo "Smoke tests complete."
 
 # ---------------------------------------------------------------------------
+# Local dependencies (Docker Compose)
+# ---------------------------------------------------------------------------
+local-up:
+	@echo "Starting local PostgreSQL and Redis..."
+	docker compose up -d
+	@echo "Waiting for services to be healthy..."
+	@docker compose ps
+	@echo ""
+	@echo "Infrastructure base is ready:"
+	@echo "  PostgreSQL: postgresql://dev:dev@localhost:5432/devsquad"
+	@echo "  Redis:      redis://localhost:6379/0"
+	@echo ""
+	@echo "NOTE: This covers persistence and queues only."
+	@echo "For a full end-to-end pipeline you also need:"
+	@echo "  - LLM Provider (OpenAI, Anthropic, Ollama, or OpenCode-Go)"
+	@echo "  - ARQ Worker (for async webhook processing)"
+	@echo "  - GitHub Integration (for PR creation)"
+	@echo "See README.md -> 'Integraciones necesarias para un flujo completo'"
+	@echo ""
+	@echo "Next steps:"
+	@echo "  make dev-backend   # terminal 1"
+	@echo "  make dev-frontend  # terminal 2"
+
+local-down:
+	@echo "Stopping local PostgreSQL and Redis..."
+	docker compose down -v
+
+local-logs:
+	docker compose logs -f
+
+local-status:
+	docker compose ps
+
+# ---------------------------------------------------------------------------
 # Local development (no Minikube)
 # ---------------------------------------------------------------------------
 dev-backend:
 	@echo "Starting backend locally on http://127.0.0.1:8000"
-	@echo "Required env vars: BACKEND_ENCRYPTION_ACTIVE_KEY_ID, BACKEND_ENCRYPTION_ACTIVE_WRAPPING_KEY, BACKEND_WEBHOOK_SHARED_SECRET"
-	@echo "Database and Redis are optional; persistence will show 'not configured' if absent."
 	@echo ""
-	@if [ -z "$$BACKEND_ENCRYPTION_ACTIVE_KEY_ID" ]; then \
-		echo "Generating dev env vars for this session..."; \
-		export BACKEND_ENCRYPTION_ACTIVE_KEY_ID="kek-dev-v1"; \
-		export BACKEND_ENCRYPTION_ACTIVE_WRAPPING_KEY=$$(python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"); \
-		export BACKEND_WEBHOOK_SHARED_SECRET=$$(python3 -c "import secrets; print(secrets.token_urlsafe(32))"); \
-		export BACKEND_DEPLOYMENT_PROFILE="connected"; \
-		export DO_NOT_TRACK="1"; \
-		export LANGCHAIN_TRACING_V2="false"; \
-	fi
-	uv run --project backend uvicorn backend.app:app --host 127.0.0.1 --port 8000 --reload
+	@bash -c ' \
+		if [ -z "$$BACKEND_ENCRYPTION_ACTIVE_KEY_ID" ]; then \
+			echo "Generating dev encryption and webhook secrets for this session..."; \
+			export BACKEND_ENCRYPTION_ACTIVE_KEY_ID="kek-dev-v1"; \
+			export BACKEND_ENCRYPTION_ACTIVE_WRAPPING_KEY=$$(python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"); \
+			export BACKEND_WEBHOOK_SHARED_SECRET=$$(python3 -c "import secrets; print(secrets.token_urlsafe(32))"); \
+			export BACKEND_DEPLOYMENT_PROFILE="connected"; \
+			export DO_NOT_TRACK="1"; \
+			export LANGCHAIN_TRACING_V2="false"; \
+		fi; \
+		if [ -z "$$BACKEND_DATABASE_URL" ]; then \
+			echo "Auto-wiring BACKEND_DATABASE_URL to local PostgreSQL (run: make local-up)"; \
+			export BACKEND_DATABASE_URL="postgresql://dev:dev@localhost:5432/devsquad"; \
+		fi; \
+		if [ -z "$$BACKEND_REDIS_URL" ]; then \
+			echo "Auto-wiring BACKEND_REDIS_URL to local Redis (run: make local-up)"; \
+			export BACKEND_REDIS_URL="redis://localhost:6379/0"; \
+		fi; \
+		echo ""; \
+		uv run --project backend uvicorn backend.app:app --host 127.0.0.1 --port 8000 --reload \
+	'
 
 dev-frontend:
 	@echo "Starting frontend dev server on http://127.0.0.1:5173"

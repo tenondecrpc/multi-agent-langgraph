@@ -60,8 +60,15 @@ class PostgresCheckpointSaverHandle:
 
     def build_saver(self):  # pragma: no cover - integration-facing
         from langgraph.checkpoint.postgres import PostgresSaver
+        from psycopg import Connection
+        from psycopg.rows import dict_row
 
-        return PostgresSaver.from_conn_string(self.database_url)
+        # psycopg does not understand the +psycopg dialect prefix used by SQLAlchemy.
+        conninfo = self.database_url.replace("postgresql+psycopg://", "postgresql://")
+        conn = Connection.connect(
+            conninfo, autocommit=True, prepare_threshold=0, row_factory=dict_row
+        )
+        return PostgresSaver(conn)
 
 
 class PostgresRunRepository:
