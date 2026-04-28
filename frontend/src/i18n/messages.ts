@@ -53,7 +53,7 @@ export const messages = {
     flowSimulator: "Flow Simulator",
     flowSimulatorIntro: "Walk the ticket pipeline step by step before a real ticket is in flight.",
     flowSimulatorOnlyNotice: "Simulation only. No code, tests, or PRs are produced.",
-    slowModeLabel: "Slow mode (1s delay)",
+    slowModeLabel: "Slow mode (5s per agent)",
     simulatorStart: "Start",
     simulatorPause: "Pause",
     simulatorResume: "Resume",

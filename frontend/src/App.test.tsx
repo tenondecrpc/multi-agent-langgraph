@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import App from "./App";
 import FlowSimulator from "./components/FlowSimulator";
-import { activeGraphCandidate, invalidGraphCandidate } from "./data/sampleData";
+import { activeGraphCandidate, invalidGraphCandidate, spriteManifest } from "./data/sampleData";
 
 const statusPagePayload = {
   schema_version: "public-status.v1",
@@ -166,23 +166,69 @@ describe("FlowSimulator", () => {
     expect(screen.getByRole("button", { name: "Resume" })).toBeDisabled();
   });
 
-  it("auto-advances every 1s in slow mode with fake timers", () => {
+  it("uses the expected bundled PNG sprite manifest entries", () => {
+    expect(spriteManifest.map((entry) => entry.path)).toEqual([
+      "/assets/sprites/agent_a.png",
+      "/assets/sprites/agent_b.png",
+      "/assets/sprites/agent_c.png",
+      "/assets/sprites/agent_d.png",
+      "/assets/sprites/agent_s.png",
+    ]);
+  });
+
+  it("renders dynamic office feedback with all agents visible", () => {
+    render(<FlowSimulator candidate={activeGraphCandidate} reducedMotion={false} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Step" }));
+
+    expect(screen.getByLabelText("Dynamic office: Reading the rules")).toBeInTheDocument();
+    expect(screen.getByRole("listitem", { name: "Planner active" })).toBeInTheDocument();
+    expect(screen.getByRole("listitem", { name: "Reviewer idle" })).toBeInTheDocument();
+    expect(screen.getByRole("listitem", { name: "Coder idle" })).toBeInTheDocument();
+    expect(screen.getByRole("listitem", { name: "Tester idle" })).toBeInTheDocument();
+    expect(screen.getByRole("listitem", { name: "PR Creator idle" })).toBeInTheDocument();
+    expect(screen.getByText("Protected workflow node")).toBeInTheDocument();
+    expect(screen.getByText("Read-only step")).toBeInTheDocument();
+    expect(screen.getByRole("log").textContent).toContain("load_constitution");
+    expect(screen.getByRole("log").textContent).toContain("transition success");
+  });
+
+  it("shows collaborator interaction in review-oriented simulator steps", () => {
+    render(<FlowSimulator candidate={activeGraphCandidate} reducedMotion={false} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Step" }));
+    fireEvent.click(screen.getByRole("button", { name: "Step" }));
+    fireEvent.click(screen.getByRole("button", { name: "Step" }));
+
+    expect(screen.getByLabelText("Dynamic office: Clarifying the plan")).toBeInTheDocument();
+    expect(screen.getByRole("listitem", { name: "Planner active" })).toBeInTheDocument();
+    expect(screen.getByRole("listitem", { name: "Reviewer active" })).toBeInTheDocument();
+    expect(screen.getByText(/walks the spec to Reviewer/)).toBeInTheDocument();
+  });
+
+  it("auto-advances every 5s in slow mode with fake timers", () => {
     vi.useFakeTimers();
 
     render(<FlowSimulator candidate={activeGraphCandidate} reducedMotion={false} />);
 
     // Enable slow mode then start
-    fireEvent.click(screen.getByLabelText("Slow mode (1s delay)"));
+    fireEvent.click(screen.getByLabelText("Slow mode (5s per agent)"));
     fireEvent.click(screen.getByRole("button", { name: "Start" }));
 
     // Step 1 (load_constitution) should be in the log immediately
     expect(screen.getByRole("log").textContent).toContain("Load Constitution");
 
-    // Advance 1 second - should move to step 2 (Feature Spec)
     act(() => {
-      vi.advanceTimersByTime(1000);
+      vi.advanceTimersByTime(4999);
     });
-    const items = screen.getByRole("log").querySelectorAll("li");
+    let items = screen.getByRole("log").querySelectorAll("li");
+    expect(items[0].textContent).toContain("Load Constitution");
+
+    // Advance 5 seconds - should move to step 2 (Feature Spec)
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    items = screen.getByRole("log").querySelectorAll("li");
     expect(items[0].textContent).toContain("Feature Spec");
 
     vi.useRealTimers();
@@ -194,7 +240,7 @@ describe("FlowSimulator", () => {
     render(<FlowSimulator candidate={activeGraphCandidate} reducedMotion={true} />);
 
     // Enable slow mode - should show reduced motion notice
-    fireEvent.click(screen.getByLabelText("Slow mode (1s delay)"));
+    fireEvent.click(screen.getByLabelText("Slow mode (5s per agent)"));
     expect(
       screen.getByText(
         "Automatic pacing is disabled (reduced motion). Use Step to advance.",
@@ -203,9 +249,9 @@ describe("FlowSimulator", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Start" }));
 
-    // Advance 1 second - should NOT auto-advance
+    // Advance 5 seconds - should NOT auto-advance
     act(() => {
-      vi.advanceTimersByTime(1000);
+      vi.advanceTimersByTime(5000);
     });
     const items = screen.getByRole("log").querySelectorAll("li");
     expect(items).toHaveLength(1);

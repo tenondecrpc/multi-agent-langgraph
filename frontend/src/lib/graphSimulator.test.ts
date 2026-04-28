@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import { activeGraphCandidate, invalidGraphCandidate } from "../data/sampleData";
-import { buildSimulationPlan, simulateAgentNarration } from "./graphSimulator";
+import {
+  buildSimulationPlan,
+  getSimulationOfficeState,
+  getSimulationAgentVisual,
+  simulateAgentNarration,
+} from "./graphSimulator";
 import type { GraphCandidate } from "../data/sampleData";
 
 const emptyCandidate: GraphCandidate = {
@@ -16,7 +21,13 @@ describe("buildSimulationPlan", () => {
     expect(plan.protectedInvariantErrors).toHaveLength(0);
     expect(plan.steps).toHaveLength(11);
     expect(plan.steps[0].nodeId).toBe("load_constitution");
+    expect(plan.steps[0].visualAgent.spritePath).toBe("/assets/sprites/agent_a.png");
+    expect(plan.steps[0].office.phase).toBe("concept");
+    expect(plan.steps[0].office.activeAgents).toEqual(["planner"]);
     expect(plan.steps[plan.steps.length - 1].nodeId).toBe("pr_creator");
+    expect(plan.steps[plan.steps.length - 1].visualAgent.spritePath).toBe(
+      "/assets/sprites/agent_s.png",
+    );
   });
 
   it("orders readiness_gate before coder in the plan", () => {
@@ -69,6 +80,55 @@ describe("buildSimulationPlan", () => {
     expect(
       plan.protectedInvariantErrors.some((e) => e.includes("coder") && e.includes("readiness_gate")),
     ).toBe(true);
+  });
+});
+
+describe("getSimulationOfficeState", () => {
+  it("maps clarification to a planner and reviewer office interaction", () => {
+    expect(getSimulationOfficeState("clarify")).toMatchObject({
+      phase: "plan-review",
+      activeAgents: ["planner", "reviewer"],
+      carrier: "planner",
+    });
+  });
+
+  it("maps testing to a coder and tester office interaction", () => {
+    expect(getSimulationOfficeState("tester")).toMatchObject({
+      phase: "testing",
+      activeAgents: ["coder", "tester"],
+      carrier: "coder",
+    });
+  });
+
+  it("falls back to a planner-led custom office state for unknown nodes", () => {
+    expect(getSimulationOfficeState("unknown_node_xyz")).toMatchObject({
+      phase: "concept",
+      activeAgents: ["planner"],
+    });
+  });
+});
+
+describe("getSimulationAgentVisual", () => {
+  it("maps known runtime nodes to bundled PNG sprite sheets", () => {
+    expect(getSimulationAgentVisual("coder")).toMatchObject({
+      role: "coder",
+      spritePath: "/assets/sprites/agent_c.png",
+    });
+    expect(getSimulationAgentVisual("tester")).toMatchObject({
+      role: "tester",
+      spritePath: "/assets/sprites/agent_d.png",
+    });
+    expect(getSimulationAgentVisual("reviewer")).toMatchObject({
+      role: "reviewer",
+      spritePath: "/assets/sprites/agent_b.png",
+    });
+  });
+
+  it("falls back to the planner visual for unknown nodes", () => {
+    expect(getSimulationAgentVisual("unknown_node_xyz")).toMatchObject({
+      role: "planner",
+      spritePath: "/assets/sprites/agent_a.png",
+    });
   });
 });
 

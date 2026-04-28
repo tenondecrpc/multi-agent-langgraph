@@ -179,25 +179,39 @@ export const agentCards: AgentCard[] = [
 
 export const spriteManifest = [
   {
-    spriteId: "planner-idle",
+    spriteId: "agent-planner",
     sourceKind: "bundled",
     runtimeRole: "planner",
     runtimeState: "planning",
-    path: "/assets/sprites/planner-idle.svg",
+    path: "/assets/sprites/agent_a.png",
   },
   {
-    spriteId: "coder-active",
+    spriteId: "agent-reviewer",
+    sourceKind: "bundled",
+    runtimeRole: "reviewer",
+    runtimeState: "review",
+    path: "/assets/sprites/agent_b.png",
+  },
+  {
+    spriteId: "agent-coder",
     sourceKind: "bundled",
     runtimeRole: "coder",
     runtimeState: "active",
-    path: "/assets/sprites/coder-active.svg",
+    path: "/assets/sprites/agent_c.png",
   },
   {
-    spriteId: "reviewer-paused",
+    spriteId: "agent-tester",
     sourceKind: "bundled",
-    runtimeRole: "reviewer",
-    runtimeState: "paused",
-    path: "/assets/sprites/reviewer-paused.svg",
+    runtimeRole: "tester",
+    runtimeState: "active",
+    path: "/assets/sprites/agent_d.png",
+  },
+  {
+    spriteId: "agent-pr-creator",
+    sourceKind: "bundled",
+    runtimeRole: "pr_creator",
+    runtimeState: "active",
+    path: "/assets/sprites/agent_s.png",
   },
 ];
 

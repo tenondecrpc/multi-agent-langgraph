@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import type { GraphCandidate } from "../data/sampleData";
 import { t } from "../i18n/messages";
 import { buildSimulationPlan, type SimulationPlan } from "../lib/graphSimulator";
+import DynamicPixelOffice from "./DynamicPixelOffice";
 
 type SimState = "idle" | "running" | "paused" | "blocked" | "completed";
 
@@ -12,6 +13,7 @@ type Props = {
 };
 
 const locale = "en";
+const SIM_STEP_DELAY_MS = 5000;
 
 const simStateLabel: Record<SimState, string> = {
   idle: "simulatorIdle",
@@ -60,9 +62,14 @@ export default function FlowSimulator({ candidate, reducedMotion }: Props) {
     }
   }
 
-  function appendLog(index: number) {
+  function formatLogEntry(index: number) {
     const step = plan.steps[index];
-    setLog((prev) => [`Step ${index + 1}: ${step.label} - ${step.narration}`, ...prev]);
+    const protectedLabel = step.isProtected ? "protected workflow node" : "unprotected node";
+    return `Step ${index + 1}: ${step.nodeId} (${step.label}) - transition ${step.transitionReason} - ${protectedLabel} - ${step.narration}`;
+  }
+
+  function appendLog(index: number) {
+    setLog((prev) => [formatLogEntry(index), ...prev]);
   }
 
   function advanceFrom(fromIndex: number) {
@@ -79,7 +86,7 @@ export default function FlowSimulator({ candidate, reducedMotion }: Props) {
     appendLog(nextIndex);
 
     if (slowModeRef.current && !reducedMotionRef.current) {
-      timerRef.current = setTimeout(() => advanceFrom(nextIndex), 1000);
+      timerRef.current = setTimeout(() => advanceFrom(nextIndex), SIM_STEP_DELAY_MS);
     }
   }
 
@@ -91,7 +98,7 @@ export default function FlowSimulator({ candidate, reducedMotion }: Props) {
       return;
     }
     const newEntries = remaining.map(
-      (s, i) => `Step ${fromIndex + i + 2}: ${s.label} - ${s.narration}`,
+      (_s, i) => formatLogEntry(fromIndex + i + 1),
     );
     setLog((prev) => [...newEntries.reverse(), ...prev]);
     setCurrentIndex(plan.steps.length - 1);
@@ -103,7 +110,7 @@ export default function FlowSimulator({ candidate, reducedMotion }: Props) {
     if (isBlocked || plan.steps.length === 0) return;
     clearTimer();
     setCurrentIndex(0);
-    setLog([`Step 1: ${plan.steps[0].label} - ${plan.steps[0].narration}`]);
+    setLog([formatLogEntry(0)]);
 
     const slowAutoAdvance = slowModeRef.current && !reducedMotionRef.current;
 
@@ -124,7 +131,7 @@ export default function FlowSimulator({ candidate, reducedMotion }: Props) {
     setSimState("running");
     simStateRef.current = "running";
     if (plan.steps.length > 1) {
-      timerRef.current = setTimeout(() => advanceFrom(0), 1000);
+      timerRef.current = setTimeout(() => advanceFrom(0), SIM_STEP_DELAY_MS);
     } else {
       setSimState("completed");
       simStateRef.current = "completed";
@@ -154,7 +161,7 @@ export default function FlowSimulator({ candidate, reducedMotion }: Props) {
     // Slow mode + auto-advance
     setSimState("running");
     simStateRef.current = "running";
-    timerRef.current = setTimeout(() => advanceFrom(currentIndex), 1000);
+    timerRef.current = setTimeout(() => advanceFrom(currentIndex), SIM_STEP_DELAY_MS);
   }
 
   function handleStep() {
@@ -172,7 +179,7 @@ export default function FlowSimulator({ candidate, reducedMotion }: Props) {
 
     setCurrentIndex(nextIndex);
     if (nextIndex === 0) {
-      setLog([`Step 1: ${plan.steps[0].label} - ${plan.steps[0].narration}`]);
+      setLog([formatLogEntry(0)]);
     } else {
       appendLog(nextIndex);
     }
@@ -199,6 +206,8 @@ export default function FlowSimulator({ candidate, reducedMotion }: Props) {
   const canResume = !isBlocked && simState === "paused" && !(slowMode && reducedMotion);
   const canStep = !isBlocked && simState !== "completed" && simState !== "blocked";
   const canReset = simState !== "idle" && simState !== "blocked";
+  const currentStep =
+    currentIndex >= 0 && currentIndex < plan.steps.length ? plan.steps[currentIndex] : null;
 
   return (
     <div className="flow-simulator">
@@ -223,10 +232,43 @@ export default function FlowSimulator({ candidate, reducedMotion }: Props) {
         </span>
         {currentIndex >= 0 && currentIndex < plan.steps.length ? (
           <span className="sim-current-step">
-            {`Current step: ${plan.steps[currentIndex].nodeId} (${plan.steps[currentIndex].label})`}
+            {`Current step: ${plan.steps[currentIndex].nodeId} (${plan.steps[currentIndex].label}) - transition ${plan.steps[currentIndex].transitionReason}`}
           </span>
         ) : null}
       </div>
+
+      {currentStep ? (
+        <>
+          <DynamicPixelOffice
+            currentStep={currentStep}
+            reducedMotion={reducedMotion}
+            running={simState === "running"}
+          />
+          <section className="agent-step-summary" aria-label="Current step details">
+            <dl className="agent-step-facts">
+              <div>
+                <dt>Node</dt>
+                <dd>{currentStep.nodeId}</dd>
+              </div>
+              <div>
+                <dt>Transition</dt>
+                <dd>{currentStep.transitionReason}</dd>
+              </div>
+              <div>
+                <dt>Protection</dt>
+                <dd>
+                  {currentStep.isProtected ? "Protected workflow node" : "Unprotected node"}
+                </dd>
+              </div>
+              <div>
+                <dt>Repository write</dt>
+                <dd>{currentStep.writesRepo ? "Writes repository" : "Read-only step"}</dd>
+              </div>
+            </dl>
+            <p>{currentStep.narration}</p>
+          </section>
+        </>
+      ) : null}
 
       {plan.steps.length > 0 ? (
         <div className="flow-simulator-node-strip" role="list" aria-label="Pipeline nodes">
@@ -240,6 +282,11 @@ export default function FlowSimulator({ candidate, reducedMotion }: Props) {
               <span className="sim-node-label">{step.label}</span>
               {i === currentIndex ? (
                 <span className="sim-node-current-indicator">[current]</span>
+              ) : null}
+              {step.isProtected ? (
+                <span className="sim-node-protected" aria-label="protected workflow node">
+                  P
+                </span>
               ) : null}
               {step.writesRepo ? (
                 <span className="sim-node-writes-repo" aria-label="writes to repository">

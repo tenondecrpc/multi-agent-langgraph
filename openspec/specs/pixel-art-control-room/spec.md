@@ -17,12 +17,28 @@ The monitoring UI MUST provide a pixel-art control room that communicates runtim
 
 ### Requirement: Visual Direction Follows The Declared Reference
 
-The control room MUST follow the copy-first visual rule described in `docs/PLAN.md`, preserving the intended scene density, rhythm, and motion language unless a documented product reason requires divergence.
+The control room MUST follow the copy-first visual rule described in `docs/PLAN.md`, preserving the intended scene density, rhythm, and motion language unless a documented product reason requires divergence. Bundled agent sprites used by the control room or simulator MUST come from the declared `the-dev-squad` reference sprite sheets unless a later approved SDD change replaces the reference.
 
 #### Scenario: Visual implementation stays faithful
 - **WHEN** the control-room design is implemented later
 - **THEN** it uses the declared reference as the primary baseline for layout logic, sprite treatment, and animation feel
 - **AND** major stylistic divergence requires explicit product rationale
+
+#### Scenario: Simulator and control room share reference sprite treatment
+
+- **WHEN** the Flow Simulator renders agent feedback using bundled sprites
+- **THEN** the sprite treatment matches the declared reference agent sheets
+- **AND** future control-room parity can reuse the same bundled assets without remapping placeholder art
+
+### Requirement: Office Scene Shows Agent Interactions
+
+Pixel-art office experiences SHALL show agent collaboration as interactions between visible agents, not only as isolated role cards. Review, test, implementation, and PR creation states MUST have distinct visual arrangements that communicate which agents are collaborating.
+
+#### Scenario: Collaboration is visually distinguishable
+
+- **WHEN** the active phase changes from planning to implementation or review
+- **THEN** the office scene changes agent positions, labels, or handoff indicators to show a different collaboration state
+- **AND** the same state remains available through text labels
 
 ### Requirement: Reduced-Motion Fallback Is Mandatory
 
@@ -41,4 +57,3 @@ The platform MUST preserve a documented Tier 2 degradation path in which a funct
 - **WHEN** the product uses the allowed Tier 2 control-room degradation path
 - **THEN** the monitoring UI still preserves the pixel-art identity and status clarity
 - **AND** the missing fidelity is tracked as a planned parity gap rather than a silent style change
-

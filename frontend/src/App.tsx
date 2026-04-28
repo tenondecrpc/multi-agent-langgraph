@@ -73,6 +73,11 @@ function runStatusLabel(run: RunCard): string {
   return `${run.ticket} is ${run.status} at ${run.agent}`;
 }
 
+function runAgentSpritePath(agent: RunCard["agent"]): string {
+  const manifestEntry = spriteManifest.find((entry) => entry.runtimeRole === agent);
+  return manifestEntry?.path ?? "/assets/sprites/agent_a.png";
+}
+
 export default function App() {
   const locale = "en";
   const [role, setRole] = useState<OperatorRole>("viewer");
@@ -259,7 +264,11 @@ export default function App() {
                       key={run.id}
                       role="listitem"
                     >
-                      <div className={`sprite-tile sprite-${run.agent}`} aria-hidden="true" />
+                      <div
+                        className={`sprite-tile sprite-${run.agent}`}
+                        style={{ backgroundImage: `url(${runAgentSpritePath(run.agent)})` }}
+                        aria-hidden="true"
+                      />
                       <div className="desk-copy">
                         <strong>{run.ticket}</strong>
                         <span>{run.agent}</span>
