@@ -14,10 +14,11 @@ import {
   type RunCard,
   type RunStatus,
 } from "./data/sampleData";
+import FlowSimulator from "./components/FlowSimulator";
 import { t } from "./i18n/messages";
 import { validateGraphCandidate } from "./lib/graphValidation";
 
-type TabKey = "dashboard" | "control-room" | "interrupts" | "graph-editor" | "admin";
+type TabKey = "dashboard" | "control-room" | "interrupts" | "graph-editor" | "admin" | "flow-simulator";
 type PublicComponentStatus = "operational" | "degraded" | "partial_outage" | "major_outage";
 type PublicStatusComponent = {
   component: string;
@@ -43,8 +44,8 @@ const statusCycle: Record<RunStatus, RunStatus> = {
 const roleTabs: Record<OperatorRole, TabKey[]> = {
   viewer: ["dashboard", "control-room"],
   operator: ["dashboard", "control-room", "interrupts"],
-  admin: ["dashboard", "control-room", "interrupts", "graph-editor", "admin"],
-  "super-admin": ["dashboard", "control-room", "interrupts", "graph-editor", "admin"],
+  admin: ["dashboard", "control-room", "interrupts", "graph-editor", "admin", "flow-simulator"],
+  "super-admin": ["dashboard", "control-room", "interrupts", "graph-editor", "admin", "flow-simulator"],
 };
 
 const liveTabLabels: Record<TabKey, string> = {
@@ -53,6 +54,7 @@ const liveTabLabels: Record<TabKey, string> = {
   interrupts: "Interrupts",
   "graph-editor": "Graph Editor",
   admin: "Admin",
+  "flow-simulator": "Flow Simulator",
 };
 
 function roleRank(role: OperatorRole): number {
@@ -380,6 +382,18 @@ export default function App() {
                     </div>
                   </div>
                 </div>
+              </section>
+            </div>
+          ) : null}
+
+          {tab === "flow-simulator" && roleRank(role) >= roleRank("admin") ? (
+            <div className="stack">
+              <section className="panel">
+                <div className="panel-header">
+                  <h2>{t(locale, "flowSimulator")}</h2>
+                  <span className="legend">{t(locale, "flowSimulatorIntro")}</span>
+                </div>
+                <FlowSimulator candidate={activeGraphCandidate} reducedMotion={reducedMotion} />
               </section>
             </div>
           ) : null}

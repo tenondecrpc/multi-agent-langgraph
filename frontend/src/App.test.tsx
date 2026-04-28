@@ -1,7 +1,9 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import App from "./App";
+import FlowSimulator from "./components/FlowSimulator";
+import { activeGraphCandidate, invalidGraphCandidate } from "./data/sampleData";
 
 const statusPagePayload = {
   schema_version: "public-status.v1",
@@ -119,6 +121,17 @@ describe("App", () => {
     expect(screen.getByText("/api/v2/runtime/simulations")).toBeInTheDocument();
   });
 
+  it("flow-simulator tab is hidden from viewer and visible to admin", () => {
+    render(<App />);
+
+    // viewer (default) should not see Flow Simulator nav button
+    expect(screen.queryByRole("button", { name: "Flow Simulator" })).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Role"), { target: { value: "admin" } });
+
+    expect(screen.getByRole("button", { name: "Flow Simulator" })).toBeInTheDocument();
+  });
+
   it("reads public status from the backend endpoint in the admin panel", async () => {
     render(<App />);
 
@@ -137,5 +150,85 @@ describe("App", () => {
       "/api/v1/status-page",
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
+  });
+});
+
+describe("FlowSimulator", () => {
+  it("shows invariant-blocked message and disables Start for an invalid candidate", () => {
+    render(<FlowSimulator candidate={invalidGraphCandidate} reducedMotion={false} />);
+
+    const alert = screen.getByRole("alert");
+    expect(alert.textContent).toContain(
+      "Simulation blocked: protected workflow invariants are violated.",
+    );
+    expect(screen.getByRole("button", { name: "Start" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Step" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Resume" })).toBeDisabled();
+  });
+
+  it("auto-advances every 1s in slow mode with fake timers", () => {
+    vi.useFakeTimers();
+
+    render(<FlowSimulator candidate={activeGraphCandidate} reducedMotion={false} />);
+
+    // Enable slow mode then start
+    fireEvent.click(screen.getByLabelText("Slow mode (1s delay)"));
+    fireEvent.click(screen.getByRole("button", { name: "Start" }));
+
+    // Step 1 (load_constitution) should be in the log immediately
+    expect(screen.getByRole("log").textContent).toContain("Load Constitution");
+
+    // Advance 1 second - should move to step 2 (Feature Spec)
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    const items = screen.getByRole("log").querySelectorAll("li");
+    expect(items[0].textContent).toContain("Feature Spec");
+
+    vi.useRealTimers();
+  });
+
+  it("does not auto-advance when reduced motion is true even with slow mode enabled", () => {
+    vi.useFakeTimers();
+
+    render(<FlowSimulator candidate={activeGraphCandidate} reducedMotion={true} />);
+
+    // Enable slow mode - should show reduced motion notice
+    fireEvent.click(screen.getByLabelText("Slow mode (1s delay)"));
+    expect(
+      screen.getByText(
+        "Automatic pacing is disabled (reduced motion). Use Step to advance.",
+      ),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Start" }));
+
+    // Advance 1 second - should NOT auto-advance
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    const items = screen.getByRole("log").querySelectorAll("li");
+    expect(items).toHaveLength(1);
+
+    vi.useRealTimers();
+  });
+
+  it("does not call fetch during simulator interactions", () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response("{}", { status: 200, headers: { "Content-Type": "application/json" } }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<FlowSimulator candidate={activeGraphCandidate} reducedMotion={false} />);
+    const callsBefore = fetchMock.mock.calls.length;
+
+    fireEvent.click(screen.getByRole("button", { name: "Start" }));
+    fireEvent.click(screen.getByRole("button", { name: "Step" }));
+    fireEvent.click(screen.getByRole("button", { name: "Pause" }));
+    fireEvent.click(screen.getByRole("button", { name: "Reset" }));
+
+    expect(fetchMock.mock.calls.length).toBe(callsBefore);
+
+    vi.unstubAllGlobals();
   });
 });

@@ -1,6 +1,6 @@
 import type { GraphCandidate } from "../data/sampleData";
 
-const requiredProtectedNodes = [
+export const requiredProtectedNodes = [
   "readiness_gate",
   "coder",
   "tester",

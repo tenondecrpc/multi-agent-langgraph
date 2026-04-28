@@ -50,6 +50,41 @@ export const messages = {
     degraded: "Degraded",
     localeValue: "en-US",
     spriteBundledOnly: "Bundled assets only in early GA",
+    flowSimulator: "Flow Simulator",
+    flowSimulatorIntro: "Walk the ticket pipeline step by step before a real ticket is in flight.",
+    flowSimulatorOnlyNotice: "Simulation only. No code, tests, or PRs are produced.",
+    slowModeLabel: "Slow mode (1s delay)",
+    simulatorStart: "Start",
+    simulatorPause: "Pause",
+    simulatorResume: "Resume",
+    simulatorStep: "Step",
+    simulatorReset: "Reset",
+    simulatorLogHeading: "Step log",
+    simulatorInvariantBlocked: "Simulation blocked: protected workflow invariants are violated.",
+    simulatorReducedMotionNotice:
+      "Automatic pacing is disabled (reduced motion). Use Step to advance.",
+    simulatorIdle: "Idle",
+    simulatorRunning: "Running",
+    simulatorPaused: "Paused",
+    simulatorCompleted: "Completed",
+    narrationLoadConstitution:
+      "Loading the product constitution to establish team context and non-negotiable constraints.",
+    narrationCreateFeatureSpec:
+      "Generating the feature specification from the Jira ticket description and repo context.",
+    narrationClarify: "Iterating on open questions with the spec until all ambiguity is resolved.",
+    narrationCreatePlan: "Building the implementation plan from the approved feature spec.",
+    narrationCreateTaskList: "Breaking the plan into ordered, testable implementation tasks.",
+    narrationReadinessGate: "Verifying spec readiness before allowing any repo-writing step.",
+    narrationCoder:
+      "Implementing the task list against the target branch. Writes are now active.",
+    narrationTester:
+      "Running the test suite against the implementation. Failing tests block the PR path.",
+    narrationReviewer:
+      "Performing code review: checking for regressions, policy violations, and diff quality.",
+    narrationPrePrSync:
+      "Syncing the branch with the target, detecting merge conflicts, and verifying diff size.",
+    narrationPrCreator:
+      "Opening the pull request on GitHub with signed commits and branch protections verified.",
   },
 } as const;
 

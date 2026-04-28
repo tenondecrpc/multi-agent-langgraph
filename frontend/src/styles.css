@@ -466,6 +466,171 @@ textarea:focus-visible {
   }
 }
 
+/* Flow Simulator */
+
+.flow-simulator {
+  display: grid;
+  gap: 1rem;
+}
+
+.flow-simulator-notice {
+  margin: 0;
+  padding: 0.75rem 1rem;
+  border-left: 4px solid #ffd166;
+  border-radius: 0 8px 8px 0;
+  background: rgba(255, 209, 102, 0.08);
+  color: #d8d1c4;
+}
+
+.flow-simulator-errors {
+  padding: 0.75rem 1rem;
+  border-left: 4px solid #ff9d77;
+  border-radius: 0 8px 8px 0;
+  background: rgba(255, 127, 80, 0.12);
+}
+
+.flow-simulator-errors p {
+  margin: 0 0 0.5rem;
+}
+
+.flow-simulator-status {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.sim-current-step {
+  color: #d8d1c4;
+  font-size: 0.9rem;
+}
+
+.flow-simulator-node-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding: 0.75rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.sim-node {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.6rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  background: rgba(9, 18, 30, 0.7);
+  font-size: 0.86rem;
+  color: #c9d8df;
+}
+
+.sim-node-current {
+  border-color: #81d8d0;
+  background: rgba(129, 216, 208, 0.14);
+  color: #81d8d0;
+}
+
+.sim-node-current-indicator {
+  font-size: 0.75rem;
+  color: #81d8d0;
+}
+
+.sim-node-writes-repo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.1rem;
+  height: 1.1rem;
+  border-radius: 3px;
+  background: rgba(255, 157, 77, 0.22);
+  color: #ff9d77;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.sim-node-label {
+  white-space: nowrap;
+}
+
+.flow-simulator-slow-mode {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.flow-simulator-reduced-notice {
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 0.9rem;
+}
+
+.flow-simulator-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.flow-simulator-controls button {
+  padding: 0.6rem 0.9rem;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  color: #f5ead9;
+}
+
+.flow-simulator-controls button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.flow-simulator-log h3 {
+  margin: 0 0 0.5rem;
+  font-size: 0.95rem;
+  color: #d8d1c4;
+}
+
+.sim-log-list {
+  margin: 0;
+  padding-left: 1.2rem;
+  display: grid;
+  gap: 0.3rem;
+  max-height: 14rem;
+  overflow-y: auto;
+  color: #d8d1c4;
+  font-size: 0.88rem;
+}
+
+.sim-state-idle {
+  background: rgba(255, 255, 255, 0.06);
+  color: #c9d8df;
+}
+
+.sim-state-running {
+  background: rgba(255, 209, 102, 0.18);
+  color: #ffd166;
+}
+
+.sim-state-paused {
+  background: rgba(255, 127, 80, 0.2);
+  color: #ff9d77;
+}
+
+.sim-state-blocked {
+  background: rgba(255, 127, 80, 0.2);
+  color: #ff9d77;
+}
+
+.sim-state-completed {
+  background: rgba(105, 240, 174, 0.16);
+  color: #69f0ae;
+}
+
 @media (max-width: 980px) {
   .layout-grid {
     grid-template-columns: 1fr;
